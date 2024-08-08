@@ -1,32 +1,72 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include <string>
-#include <map>
 #include <fstream>
 #include <memory>
 
 using boost::asio::ip::tcp;
 
-void handle_read(std::shared_ptr<tcp::socket> socket, std::vector<char> buffer, bool start_connection) {
-    socket->async_read_some(boost::asio::buffer(buffer), [socket, buffer, &start_connection] (boost::system::error_code& error) {
+void handle_read(std::shared_ptr<tcp::socket> socket, std::string buffer, bool start_connection) {
+    socket->async_read_some(boost::asio::buffer(buffer), [socket, &buffer, &start_connection] (const boost::system::error_code& error, std::size_t length) {
         if (!error) {
             if (start_connection == true) { // Write information about clients
                 std::ofstream file("clients_info.txt", std::ios::app);
-                if (!file) {
-                    std::cerr << "Unable to open file" << std::endl;
+                if (!file.is_open()) {
+                    std::cerr << "Unable to open file for write" << std::endl;
                     return;
                 }
-                file << buffer.data() << " online" << " free";
+                file << buffer << " online" << " free";
                 start_connection = false;
             }
+            if (buffer == "list") {
+                std::ifstream file("clients_info.txt");
+                if (!file.is_open()) {
+                        std::cerr << "Unable to open file for read" << std::endl;
+                        return;
+                }
+                std::string line;
+                int end_of_ip_address = 0;
+                buffer = "-----------THE LIST-------------\n";
+                while(std::getline(file, line)) {
+                    end_of_ip_address = line.find(" ");
+                    line = line.substr(end_of_ip_address);
+                    buffer += line + "\n";
+                } 
+                boost::asio::async_write(*socket, boost::asio::buffer(buffer), [socket](const boost::system::error_code& error, std::size_t lenght) {});
+            } else {
+                std::ifstream file("clients_info.txt");
+                if (!file.is_open()) {
+                    std::cerr << "Unable to open file for read" << std::endl;
+                }
+                int username = 0;
+                std::string line;
+                while(std::getline(file, line)) {
+                    username = line.find(buffer);
+                    if (username > 0) {
+                        break;
+                    } 
+                }
+                if (username == -1 ) {
+                    std::cerr << "User not found" << std::endl;
+                    return;
+                } else {
+                    int end_of_ip_address = 0;
+                    buffer = line.substr(0,end_of_ip_address);
+                }
+                boost::asio::async_write(*socket, boost::asio::buffer(buffer), [socket](const boost::system::error_code& error, std::size_t lenght) {});
+            }
+            buffer.resize(1024);
+            handle_read(socket, buffer, false);   
+        } else {
+            std::cerr << "Error during read" << error.message() << std::endl;
         }
     });
-}
+}   
 void start_accept(boost::asio::io_context& io_context, tcp::acceptor& acceptor) {
     auto socket = std::make_shared<tcp::socket>(io_context);
-    acceptor.async_accept(*socket, [socket, &acceptor, &io_context](boost::system::error_code& error) {
+    acceptor.async_accept(*socket, [socket, &acceptor, &io_context](const boost::system::error_code& error) {
         if(!error) {
-            std::vector<char> buffer;
+            std::string buffer(1024, '\0');
             handle_read(socket, buffer, true);
         }
         start_accept(io_context, acceptor);
