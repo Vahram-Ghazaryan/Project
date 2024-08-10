@@ -57,7 +57,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket, std::shared_ptr<tcp::socke
             std::cout << "Enter the username of the client you want to connect to: ";
             std::cin >> target_username;
 
-            boost::asio::async_write(*socket, boost::asio::buffer(target_username), [socket, server_socket, &io_context, username](const boost::system::error_code& error, std::size_t length) {
+            boost::asio::async_write(*socket, boost::asio::buffer("connect " + target_username), [socket, server_socket, &io_context, username](const boost::system::error_code& error, std::size_t length) {
                 handle_write(error, length);
 
                 auto buffer = std::make_shared<std::array<char, 1024>>();
