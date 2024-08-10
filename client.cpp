@@ -12,7 +12,7 @@ void handle_write(const boost::system::error_code& error, std::size_t) {
 }
 
 void notify_server_status(std::shared_ptr<tcp::socket> server_socket, const std::string& status, const std::string& username) {
-    std::string message = '"' + username + " " + status + '"';
+    std::string message = username + " " + status;
     boost::asio::async_write(*server_socket, boost::asio::buffer(message), handle_write);
 }
 
