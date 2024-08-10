@@ -11,28 +11,71 @@ void handle_write(const boost::system::error_code& error, std::size_t) {
     }
 }
 
-void handle_read(std::shared_ptr<tcp::socket> socket, boost::asio::io_context& io_context, const std::string& port) {
+void start_chat(std::shared_ptr<tcp::socket> socket) {
     auto buffer = std::make_shared<std::array<char, 1024>>();
-    socket->async_read_some(boost::asio::buffer(*buffer), [socket, buffer, &io_context, port](const boost::system::error_code& error, std::size_t length) {
+
+    socket->async_read_some(boost::asio::buffer(*buffer), [socket, buffer](const boost::system::error_code& error, std::size_t length) {
+        if (!error) {
+            std::string message(buffer->data(), length);
+            std::cout << "Received: " << message << std::endl;
+            start_chat(socket);
+        } else {
+            std::cerr << "Error during read: " << error.message() << std::endl;
+        }
+    });
+
+    while (true) {
+        std::string message;
+        std::cout << "Enter message: ";
+        std::getline(std::cin, message);
+
+        if (message == "exit") {
+            std::cout << "Exiting chat." << std::endl;
+            socket->close();
+            break;
+        }
+
+        boost::asio::async_write(*socket, boost::asio::buffer(message), handle_write);
+    }
+}
+
+void handle_read(std::shared_ptr<tcp::socket> socket, boost::asio::io_context& io_context) {
+    auto buffer = std::make_shared<std::array<char, 1024>>();
+    socket->async_read_some(boost::asio::buffer(*buffer), [socket, buffer, &io_context](const boost::system::error_code& error, std::size_t length) {
         if (!error) {
             std::string response(buffer->data(), length);
-            std::cout << "Online clients: " << response << std::endl;
+            std::cout << "Online clients:\n" << response << std::endl;
 
-            std::string selected_client;
-            std::cout << "Enter the IP address of the client you want to connect to: ";
-            std::cin >> selected_client;
+            std::string username;
+            std::cout << "Enter the username of the client you want to connect to: ";
+            std::cin >> username;
 
-            socket->close();
+            boost::asio::async_write(*socket, boost::asio::buffer(username), [socket, &io_context](const boost::system::error_code& error, std::size_t length) {
+                handle_write(error, length);
 
-            auto client_socket = std::make_shared<tcp::socket>(io_context);
-            tcp::resolver resolver(io_context);
-            tcp::resolver::results_type client_endpoints = resolver.resolve(selected_client, port);
-            boost::asio::async_connect(*client_socket, client_endpoints, [client_socket](const boost::system::error_code& error, const tcp::endpoint&) {
-                if (!error) {
-                    std::cout << "Connected to client." << std::endl;
-                } else {
-                    std::cerr << "Error during client connect: " << error.message() << std::endl;
-                }
+                auto buffer = std::make_shared<std::array<char, 1024>>();
+                socket->async_read_some(boost::asio::buffer(*buffer), [socket, buffer, &io_context](const boost::system::error_code& error, std::size_t length) {
+                    if (!error) {
+                        std::string client_ip(buffer->data(), length);
+                        std::cout << "IP address of the selected client: " << client_ip << std::endl;
+
+                        socket->close();
+
+                        auto client_socket = std::make_shared<tcp::socket>(io_context);
+                        tcp::resolver resolver(io_context);
+                        tcp::resolver::results_type client_endpoints = resolver.resolve(client_ip, "12345");
+                        boost::asio::async_connect(*client_socket, client_endpoints, [client_socket](const boost::system::error_code& error, const tcp::endpoint&) {
+                            if (!error) {
+                                std::cout << "Connected to client. You can now start chatting." << std::endl;
+                                start_chat(client_socket); // Start the chat
+                            } else {
+                                std::cerr << "Error during client connect: " << error.message() << std::endl;
+                            }
+                        });
+                    } else {
+                        std::cerr << "Error during read: " << error.message() << std::endl;
+                    }
+                });
             });
         } else {
             std::cerr << "Error during read: " << error.message() << std::endl;
@@ -61,7 +104,7 @@ int main(int argc, char* argv[]) {
 
                 boost::asio::async_write(*socket, boost::asio::buffer(buffer), [socket, &io_context, argv](const boost::system::error_code& error, std::size_t length) {
                     handle_write(error, length);
-                    handle_read(socket, io_context, argv[2]);
+                    handle_read(socket, io_context);
                 });
             } else {
                 std::cerr << "Error during connect: " << error.message() << std::endl;
