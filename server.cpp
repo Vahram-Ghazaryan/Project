@@ -40,7 +40,7 @@ void change_status(const std::shared_ptr<tcp::socket>& socket, const std::string
     } else if (change == "free" ) {
         changed_line += " online free\n"; 
     } else if (change == "offline") {
-        changed_line += " offline\n";
+        changed_line = "";
     }
     std::lock_guard<std::mutex> lock(mutex);
     std::ofstream file_for_change("clients_info.txt");
@@ -126,6 +126,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection) {
     auto buffer = std::make_shared<std::array<char, 1024>>();
     std::cout << "Called handle_read function" << std::endl;
     socket->async_read_some(boost::asio::buffer(*buffer), [socket, buffer, start_connection] (const boost::system::error_code& error, std::size_t length) {
+        std::string username_for_end_of_connection;
         if (!error) {
             static std::vector<std::string> users;
             std::string recived_data(buffer -> data(),length);
@@ -141,22 +142,23 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection) {
                 username = recived_data.substr(end_of_request + 1);
                 for (int i = 0; i < users.size(); ++i) {
                     if (users[i] == username) {
-                    boost::asio::async_write(*socket, boost::asio::buffer("That username is not available. Please try again\n"), [socket](const boost::system::error_code& error, std::size_t) {
-                        if (error) {
-                        std::cerr << "Error during write: " << error.message() << std::endl;
-                        }
-                    });                       
-                    handle_read(socket, true);
+                        boost::asio::async_write(*socket, boost::asio::buffer("That username is not available. Please restart program\n"), [socket](const boost::system::error_code& error, std::size_t) {
+                            if (error) {
+                            std::cerr << "Error during write: " << error.message() << std::endl;
+                            }
+                        });                       
+                    socket->close();
                     return;
                     }
                 }
+                username_for_end_of_connection = username;
                 users.push_back(username);
                 std::ofstream file("clients_info.txt", std::ios::app);
 				std::cout << "File opened for write" << std::endl;
                 std::lock_guard<std::mutex> lock(mutex);
 				if (!file.is_open()) {
                     std::cerr << "Unable to open file for write" << std::endl;
-                handle_read(socket, false);
+                    handle_read(socket, false);
                 }
                 std::ifstream file1("clients_info.txt");
                 send_list(socket, username);
@@ -183,9 +185,10 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection) {
             handle_read(socket, false);
         } else {
             std::cerr << "Error during read: " << error.message() << std::endl;
+            change_status(socket, username_for_end_of_connection + " offline", username_for_end_of_connection.size(), username_for_end_of_connection);
         }
     });
-}   
+}
 
 void start_accept(boost::asio::io_context& io_context, tcp::acceptor& acceptor) {	
     std::cout << "Called start_accept function" << std::endl;
@@ -216,3 +219,4 @@ int main(int argc, char* argv[]) {
     }
     return 0;
 }
+
