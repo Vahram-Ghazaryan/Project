@@ -147,16 +147,24 @@ void handle_read(std::shared_ptr<tcp::socket> socket, std::shared_ptr<tcp::socke
                 std::getline(std::cin, reply);
 
                 if (reply == "accept") {
-                    boost::asio::async_write(*socket, boost::asio::buffer("accept"), handle_write);
+                    std::string response_message = "accept from " + username + " for " + requester;
+                    boost::asio::async_write(*socket, boost::asio::buffer(response_message), handle_write);
                     std::cout << "Connection accepted. You can now start chatting." << std::endl;
                     notify_server_status(server_socket, "no free", username);
-                    std::thread chat_thread(start_chat, socket, server_socket, username);
-                    chat_thread.detach();
+                    start_chat(socket, server_socket, username);
                 } else if (reply == "reject") {
-                    boost::asio::async_write(*socket, boost::asio::buffer("reject"), handle_write);
+                    std::string response_message = "reject from " + username + " for " + requester;
+                    boost::asio::async_write(*socket, boost::asio::buffer(response_message), handle_write);
                     std::cout << "Connection rejected." << std::endl;
                     notify_server_status(server_socket, "waiting", username);
                 }
+            } else if (response == "reject") {
+                std::cout << "Connection request rejected by the other client." << std::endl;
+                notify_server_status(server_socket, "waiting", username);
+            } else if (response.find("IP: ") == 0) {
+                std::string client_ip = response.substr(4);
+                std::cout << "IP address of the selected client: " << client_ip << std::endl;
+                connect_to_client(client_ip, io_context, server_socket, username);
             } else {
                 std::cout << "Online clients:\n" << response << std::endl;
 
@@ -165,32 +173,39 @@ void handle_read(std::shared_ptr<tcp::socket> socket, std::shared_ptr<tcp::socke
                 std::getline(std::cin, target_username);
 
                 if (target_username == "wait") {
-                    std::cout << "Switch to standby mode.." << std::endl;
-                    boost::asio::async_write(*socket, boost::asio::buffer("wait"), [socket, server_socket, &io_context, username](const boost::system::error_code& error, std::size_t length) {
-                        handle_write(error, length);
-                    });
+                    std::cout << "Switching to standby mode.." << std::endl;
+                    boost::asio::async_write(*socket, boost::asio::buffer("wait"), handle_write);
                 } else {
-                    boost::asio::async_write(*socket, boost::asio::buffer("connect " + target_username), [socket, server_socket, &io_context, username](const boost::system::error_code& error, std::size_t length) {
-                        handle_write(error, length);
+                    std::string connect_message = "connect " + target_username;
+                    boost::asio::async_write(*socket, boost::asio::buffer(connect_message), handle_write);
 
-                        auto buffer = std::make_shared<std::array<char, 1024>>();
-                        socket->async_read_some(boost::asio::buffer(*buffer), [socket, server_socket, buffer, &io_context, username](const boost::system::error_code& error, std::size_t length) {
-                            if (!error) {
-                                std::string client_ip(buffer->data(), length);
+                    auto buffer = std::make_shared<std::array<char, 1024>>();
+                    socket->async_read_some(boost::asio::buffer(*buffer), [socket, server_socket, buffer, &io_context, username](const boost::system::error_code& error, std::size_t length) {
+                        if (!error) {
+                            std::string response(buffer->data(), length);
+                            if (response.find("IP: ") == 0) {
+                                std::string client_ip = response.substr(4);
                                 std::cout << "IP address of the selected client: " << client_ip << std::endl;
                                 connect_to_client(client_ip, io_context, server_socket, username);
                             } else {
-                                std::cerr << "Error during read: " << error.message() << std::endl;
+                                std::cerr << "Unexpected response: " << response << std::endl;
                             }
-                        });
+                        } else {
+                            std::cerr << "Error during read: " << error.message() << std::endl;
+                        }
                     });
                 }
             }
+
+            handle_read(socket, server_socket, io_context, username);
         } else {
             std::cerr << "Error during read: " << error.message() << std::endl;
         }
     });
 }
+
+
+
 
 int main(int argc, char* argv[]) {
     try {
@@ -239,4 +254,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
