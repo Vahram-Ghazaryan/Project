@@ -47,7 +47,7 @@ void send_list(const std::shared_ptr<tcp::socket>& socket,const std::string& use
     });
 }
 
-void change_status(const std::shared_ptr<tcp::socket>& socket, const std::string& recived_data, const int& end_of_request, std::string& username, std::vector<std::string> users) {
+void change_status(const std::shared_ptr<tcp::socket>& socket, const std::string& received_data, const int& end_of_request, std::string& username, std::vector<std::string> users) {
     std::cout << "Called change_status" << std::endl;
     std::ifstream file("clients_info.txt");
     if (!file.is_open()) {
@@ -75,7 +75,7 @@ void change_status(const std::shared_ptr<tcp::socket>& socket, const std::string
     file.close();
     find_end_of_ip_address = changed_line.find(username);
     changed_line = changed_line.substr(0, end_of_request + find_end_of_ip_address);
-    std::string change = recived_data.substr(end_of_request + 1);
+    std::string change = received_data.substr(end_of_request + 1);
     if (change == "no free") {
         changed_line += " online no free\n";
     } else if (change == "free" ) {
@@ -131,15 +131,14 @@ void connection_request(const std::string& client_ip, const std::unordered_map<s
     }
 }
 
-std::string find_ip_address(std::string recived_data, int end_of_request, const std::unordered_map<std::string, std::string>& client_username_ip) {
+std::string find_ip_address(std::string received_data, int end_of_request, const std::unordered_map<std::string, std::string>& client_username_ip) {
     std::cout << "Called find_ip_address function" << std::endl;
     int find_username = 0;
-    std::cout << "The recived data is " << recived_data << std::endl;
-    std::string username = recived_data.substr(end_of_request + 1);
-    std::cout << "THe username is " << username << std::endl;
+    std::cout << "The recived data is " << received_data << std::endl;
+    std::string username = received_data.substr(end_of_request + 1);
+    std::cout << "The username is " << username << std::endl;
     auto it = client_username_ip.find(username);
     std::string ip_address;
-     std::cout << "The ip address is " << ip_address << std::endl;
     if (it != client_username_ip.end()) {
         ip_address = it -> second;
         return ip_address;
@@ -147,16 +146,16 @@ std::string find_ip_address(std::string recived_data, int end_of_request, const 
         return "";
     }
 }
-void send_answer_of_connection(std::string& recived_data, const std::unordered_map<std::string, std::string>& client_username_ip, const std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_ip_sockets) {
+void send_answer_of_connection(std::string& received_data, const std::unordered_map<std::string, std::string>& client_username_ip, const std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_ip_sockets) {
     std::cout << "Called send_answer_of_connection" << std::endl;
     std::lock_guard<std::mutex> lock(mutex);
-    std::string request = recived_data.substr(0, 6);
-    recived_data = recived_data.substr(12);
-    int find_end_of_username = recived_data.find(" ");
+    std::string request = received_data.substr(0, 6);
+    received_data = received_data.substr(12);
+    int find_end_of_username = received_data.find(" ");
     std::string answer;
     std::shared_ptr<tcp::socket> requester_socket;
         std::string requester_ip;
-        std::string requester = recived_data.substr(find_end_of_username + 5);
+        std::string requester = received_data.substr(find_end_of_username + 5);
         std::cout << "The requester is " << requester << std::endl;       
         auto find_requester_ip = client_username_ip.find(requester);
         if (find_requester_ip != client_username_ip.end()) {
@@ -170,9 +169,9 @@ void send_answer_of_connection(std::string& recived_data, const std::unordered_m
             requester_socket = find_requester_socket -> second;
         }
     if (request == "accept") {
-        std::string receiver_username = recived_data.substr(0, find_end_of_username);
+        std::string receiver_username = received_data.substr(0, find_end_of_username);
         std::string receiver_ip;
-        std::cout << "The username is " << receiver_username << std::endl;
+        std::cout << "The receiver username is " << receiver_username << std::endl;
         auto find_receiver_ip = client_username_ip.find(receiver_username);
         if (find_receiver_ip != client_username_ip.end()) {
             receiver_ip = find_receiver_ip -> second;
@@ -180,7 +179,7 @@ void send_answer_of_connection(std::string& recived_data, const std::unordered_m
             std::cerr << "Receiver ip not found" << std::endl;
             return;
         }     
-        answer = "IP: " + requester_ip;
+        answer = "IP: " + receiver_ip;
     } else {
         answer = "reject";
     }
