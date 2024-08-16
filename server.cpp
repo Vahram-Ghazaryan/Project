@@ -6,14 +6,13 @@
 #include <array>
 #include <mutex>
 #include <vector>
-#include <future>
 #include <algorithm>
 #include <unordered_map>
 
 using boost::asio::ip::tcp;
 std::mutex mutex;
 
-std::string username_for_end_of_connection;
+std::string username_for_other_scope;
 
 void send_list(const std::shared_ptr<tcp::socket>& socket,const std::string& username, std::vector<std::string> users) {
 
@@ -101,8 +100,12 @@ void change_status(const std::shared_ptr<tcp::socket>& socket, const std::string
     file_for_change.close();
 }
 
-bool connection_request(const std::string& client_ip, const std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_sockets, std::shared_ptr<std::string> username) {
+void connection_request(const std::string& client_ip, const std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_sockets, std::shared_ptr<std::string> username) {
     std::cout << "Called connection_request function" << std::endl;
+    if (client_ip == "") {
+        std::cerr << "Ip address not found" << std::endl;
+        return;
+    }
     std::shared_ptr<tcp::socket> socket;
     std::lock_guard<std::mutex> lock(mutex);
     auto it = client_sockets.find(client_ip);
@@ -112,86 +115,88 @@ bool connection_request(const std::string& client_ip, const std::unordered_map<s
         std::cout << "Socket is " << socket << std::endl;
     } else {
         std::cerr << "Client ip not found in map:" << client_ip<< std::endl;
-        return false;
+        return;
     }
     auto buffer = std::make_shared<std::array<char, 1024>>();
-    std::promise<bool> promise;
-    std::future<bool> future = promise.get_future();
     if (socket) {
         std::string request = "request " + *username;
         std::cout << "The request is " << request << std::endl;
         std::cout << "The client ip is " << it -> first << std::endl; 
-        boost::asio::async_write(*socket, boost::asio::buffer(request), [socket, buffer, &promise, request] (const boost::system::error_code& write_error, std::size_t) {
-            std::cout << "Received data" << request << std::endl;
-            if (!write_error) {
-                socket -> async_read_some(boost::asio::buffer(*buffer), [socket, buffer, &promise] (const boost::system::error_code& error, std::size_t length){
-                    if (!error) {
-                        std::string answer(buffer -> data(), length);
-                        std::cout << "The answer is " << answer << std::endl;
-                        if (answer == "accept") {
-                            promise.set_value(true);
-                        } else if (answer == "reject") {
-                            promise.set_value(false);
-                        } else {
-                            promise.set_value(false);
-                        }
-                    } else {
-                        std::cerr << "Error during read " << error.message() << std::endl;
-                        promise.set_value(false);
-                    }
-                    });
-            } else {
+        boost::asio::async_write(*socket, boost::asio::buffer(request), [socket, buffer, request] (const boost::system::error_code& write_error, std::size_t) {
+        std::cout << "Received data" << request << std::endl;
+            if (write_error) {
                 std::cerr << "Error during write " << write_error.message() << std::endl;
-                promise.set_value(false);;
             }
         });
     }
-    bool accept = future.get();
-    return accept;
 }
 
-void send_ip_address(const std::shared_ptr<tcp::socket>& socket, std::string recived_data, int end_of_request, const std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_sockets, std::shared_ptr<std::string> sender_username) {
-    std::cout << "Called send_ip_address function" << std::endl;
+std::string find_ip_address(std::string recived_data, int end_of_request, const std::unordered_map<std::string, std::string>& client_username_ip) {
+    std::cout << "Called find_ip_address function" << std::endl;
     int find_username = 0;
-    std::string username = recived_data.substr(end_of_request);
-    std::ifstream file("clients_info.txt");
-    if (!file.is_open()) {
-        std::cerr << "Unable to open file for read 2 " << std::endl;
-        return;
-    }
-    std::cout << "File opened" << std::endl;
-    std::string line;
-    while(std::getline(file, line)) {
-        find_username = line.find(username);
-        if (find_username != std::string::npos) {
-            break;
-        } 
-    }
-    file.close();
-    int end_of_ip_address = line.find(" ");
-    std::string response;
-    if (find_username != std::string::npos) {
-        response = line.substr(0,end_of_ip_address);
+    std::cout << "The recived data is " << recived_data << std::endl;
+    std::string username = recived_data.substr(end_of_request + 1);
+    std::cout << "THe username is " << username << std::endl;
+    auto it = client_username_ip.find(username);
+    std::string ip_address;
+     std::cout << "The ip address is " << ip_address << std::endl;
+    if (it != client_username_ip.end()) {
+        ip_address = it -> second;
+        return ip_address;
     } else {
-        response = "User not found\n";
+        return "";
     }
-    std::cout << "The ip address is " << response << std::endl;
-    if (!connection_request(response, client_sockets, sender_username)) {
-        response = "The other client rejected the connection\n";
+}
+void send_answer_of_connection(std::string& recived_data, const std::unordered_map<std::string, std::string>& client_username_ip, const std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_ip_sockets) {
+    std::cout << "Called send_answer_of_connection" << std::endl;
+    std::lock_guard<std::mutex> lock(mutex);
+    std::string request = recived_data.substr(0, 6);
+    recived_data = recived_data.substr(12);
+    int find_end_of_username = recived_data.find(" ");
+    std::string answer;
+    std::shared_ptr<tcp::socket> requester_socket;
+        std::string requester_ip;
+        std::string requester = recived_data.substr(find_end_of_username + 5);
+        std::cout << "The requester is " << requester << std::endl;       
+        auto find_requester_ip = client_username_ip.find(requester);
+        if (find_requester_ip != client_username_ip.end()) {
+            requester_ip = find_requester_ip -> second;
+        } else {
+            std::cerr << "Requester ip not found" << std::endl;
+            return;
+        }
+        auto find_requester_socket = client_ip_sockets.find(requester_ip);
+        if (find_requester_socket != client_ip_sockets.end()) {
+            requester_socket = find_requester_socket -> second;
+        }
+    if (request == "accept") {
+        std::string receiver_username = recived_data.substr(0, find_end_of_username);
+        std::string receiver_ip;
+        std::cout << "The username is " << receiver_username << std::endl;
+        auto find_receiver_ip = client_username_ip.find(receiver_username);
+        if (find_receiver_ip != client_username_ip.end()) {
+            receiver_ip = find_receiver_ip -> second;
+        } else {
+            std::cerr << "Receiver ip not found" << std::endl;
+            return;
+        }     
+        answer = "IP: " + requester_ip;
+    } else {
+        answer = "reject";
     }
-    boost::asio::async_write(*socket, boost::asio::buffer(response), [socket](const boost::system::error_code& error, std::size_t) {
+    boost::asio::async_write(*requester_socket, boost::asio::buffer(answer), [requester_socket] (const boost::system::error_code& error, std::size_t) {
         if (error) {
-            std::cerr << "Error during write: " << error.message() << std::endl;
+            std::cerr << "Error during write " << error.message() << std::endl;
         }
     });
 }
-
-void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std::shared_ptr<std::string> username_for_end_of_connection) {
+void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std::shared_ptr<std::string> username_for_other_scope) {
     auto buffer = std::make_shared<std::array<char, 1024>>();
     std::cout << "Called handle_read function" << std::endl;
     std::string client_ip = socket -> remote_endpoint().address().to_string();                                                                                                                                                     
-    static std::unordered_map<std::string, std::shared_ptr<tcp::socket>> client_sockets;
-    socket->async_read_some(boost::asio::buffer(*buffer), [socket, buffer, start_connection, username_for_end_of_connection, client_ip] (const boost::system::error_code& error, std::size_t length) {
+    static std::unordered_map<std::string, std::string> client_username_ip;
+    static std::unordered_map<std::string, std::shared_ptr<tcp::socket>> client_ip_sockets;
+    socket->async_read_some(boost::asio::buffer(*buffer), [socket, buffer, start_connection, username_for_other_scope, client_ip] (const boost::system::error_code& error, std::size_t length) {
         static std::vector<std::string> users;
         if (!error) {
             std::string recived_data(buffer -> data(),length);
@@ -216,49 +221,57 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
                     return;
                     }
                 }
-
                 std::cout << "username added to vector: " << username << std::endl;
-                *username_for_end_of_connection = username;
+                *username_for_other_scope = username;
                 send_list(socket, username, users);
                 users.push_back(username);
                 std::cout << "The vector size is " << users.size() << std::endl;
                 std::ofstream file("clients_info.txt", std::ios::app);
 				std::cout << "File opened for write" << std::endl;
                 std::lock_guard<std::mutex> lock(mutex);
-                client_sockets[client_ip] = socket;
-                std::cout << username << "socket is " << client_sockets[client_ip] << std::endl;
+                client_ip_sockets[client_ip] = socket;
+                client_username_ip[username] = client_ip;
+                std::cout << username << " socket is " << client_ip_sockets[client_ip] << std::endl;
 				if (!file.is_open()) {
                     std::cerr << "Unable to open file for write" << std::endl;
-                    handle_read(socket, false, username_for_end_of_connection);
+                    handle_read(socket, false, username_for_other_scope);
                 }
                 std::ifstream file1("clients_info.txt");
                 file << recived_data << " online" << " free\n";
                 file.close();
-                handle_read(socket, false, username_for_end_of_connection);
+                handle_read(socket, false, username_for_other_scope);
             }
             if (request == "list") {
                 username = recived_data.substr(end_of_request + 1);
                 send_list(socket, username, users); 
-                handle_read(socket, false, username_for_end_of_connection);
+                handle_read(socket, false, username_for_other_scope);
             } 
             if (request == "connect") {
-                send_ip_address(socket, recived_data, end_of_request, client_sockets, username_for_end_of_connection);
-                handle_read(socket, false, username_for_end_of_connection);
+                connection_request(find_ip_address(recived_data, end_of_request, client_username_ip), client_ip_sockets, username_for_other_scope);
+                handle_read(socket, false, username_for_other_scope);
+            }
+            if (request == "accept") {
+                send_answer_of_connection(recived_data, client_username_ip, client_ip_sockets);
+                handle_read(socket, false, username_for_other_scope);
+            }
+            if (request == "reject") {
+                send_answer_of_connection(recived_data, client_username_ip, client_ip_sockets);
+                handle_read(socket, false, username_for_other_scope);
             }
             for (int i = 0; i < users.size(); ++i) {
                 if (users[i] == request) {
                     change_status(socket, recived_data, end_of_request, request, users);
-                    handle_read(socket,false, username_for_end_of_connection);
+                    handle_read(socket,false, username_for_other_scope);
                     break;
                 }
             }
-            handle_read(socket, false, username_for_end_of_connection);
+            handle_read(socket, false, username_for_other_scope);
         } else {
             std::cerr << "Error during read: " << error.message() << std::endl;
-            change_status(socket, *username_for_end_of_connection + " offline", username_for_end_of_connection -> size(), *username_for_end_of_connection, users);
-            auto new_end_of_vector = std::remove(users.begin(), users.end(), *username_for_end_of_connection);
+            change_status(socket, *username_for_other_scope + " offline", username_for_other_scope -> size(), *username_for_other_scope, users);
+            auto new_end_of_vector = std::remove(users.begin(), users.end(), *username_for_other_scope);
             users.pop_back();
-            std::cout << "The deleted username from vector is " << *username_for_end_of_connection << std::endl;
+            std::cout << "The deleted username from vector is " << *username_for_other_scope << std::endl;
             std::cout << "vector size: " << users.size() << std::endl;
         }
     });
@@ -267,11 +280,11 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
 void start_accept(boost::asio::io_context& io_context, tcp::acceptor& acceptor) {	
     std::cout << "Called start_accept function" << std::endl;
 	auto socket = std::make_shared<tcp::socket>(io_context);
-    auto username_for_end_of_connection = std::make_shared<std::string>();
-    acceptor.async_accept(*socket, [socket, &acceptor, &io_context, username_for_end_of_connection](const boost::system::error_code& error) {
+    auto username_for_other_scope = std::make_shared<std::string>();
+    acceptor.async_accept(*socket, [socket, &acceptor, &io_context, username_for_other_scope](const boost::system::error_code& error) {
         if(!error) {
             std::array<char, 1024> buffer{};
-            handle_read(socket, true, username_for_end_of_connection);
+            handle_read(socket, true, username_for_other_scope);
         }
         start_accept(io_context, acceptor);
     });
