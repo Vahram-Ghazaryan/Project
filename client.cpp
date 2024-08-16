@@ -22,10 +22,15 @@ void print_message(const std::string& sender, const std::string& message, bool i
     std::string time_str = "[" + current_time() + "]";
     std::string formatted_message = time_str + " " + message;
     
+    // ANSI escape codes for colors
+    const std::string user_color = "\033[34m";  // Blue
+    const std::string other_color = "\033[32m"; // Green
+    const std::string reset_color = "\033[0m";  // Reset to default
+
     if (is_current_user) {
-        std::cout << sender << ": " << std::setw(55) << std::left << formatted_message << std::endl;
+        std::cout << user_color << std::setw(55) << std::left << time_str << reset_color << std::endl;
     } else {
-        std::cout << std::setw(55) << std::right << formatted_message << std::endl;
+        std::cout << other_color << std::setw(55) << std::right << formatted_message << reset_color << std::endl;
     }
 }
 
@@ -66,6 +71,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         if (!error) {
             std::string message(buffer->data(), length);
             print_message(username, message, false);  // false for incoming message
+            start_chat(client_socket, server_socket, username); 
         } else {
             std::cerr << "Error during read: " << error.message() << std::endl;
             notify_server_status(server_socket, "free", username);
@@ -76,7 +82,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     std::thread([client_socket, server_socket, username]() {
         while (true) {
             std::string message;
-            std::cout << "Write message: ";
+            std::cout << "You: ";
             std::getline(std::cin, message);
 
             if (message == "/disconnect") {
@@ -99,11 +105,12 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     }).detach();
 }
 
+
 void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username) {
     auto new_socket = std::make_shared<tcp::socket>(io_context);
     acceptor->async_accept(*new_socket, [new_socket, acceptor, &io_context, server_socket, username](const boost::system::error_code& error) {
         if (!error) {
-            std::cout << "New connection accepted. Enter message or 'wait' to wait for incoming connections: " << std::endl;
+            std::cout << "Enter message or 'wait' to wait for incoming connections: " << std::endl;
 
             notify_server_status(server_socket, "no free", username);
             std::thread chat_thread(start_chat, new_socket, server_socket, username);
@@ -151,7 +158,6 @@ void handle_read(std::shared_ptr<tcp::socket> socket, std::shared_ptr<tcp::socke
                     boost::asio::async_write(*socket, boost::asio::buffer(response_message), handle_write);
                     std::cout << "Connection accepted. You can now start chatting." << std::endl;
                     notify_server_status(server_socket, "no free", username);
-                    start_chat(socket, server_socket, username);
                 } else if (reply == "reject") {
                     std::string response_message = "reject from " + username + " for " + requester;
                     boost::asio::async_write(*socket, boost::asio::buffer(response_message), handle_write);
