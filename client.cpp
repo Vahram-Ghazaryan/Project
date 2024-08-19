@@ -195,6 +195,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 break;
             } else if (message == "/exit") {
                 std::cout << "Exiting program." << std::endl;
+                boost::asio::async_write(*client_socket, boost::asio::buffer("/disconnect"), handle_write);
                 client_socket->close();
                 notify_server_status(server_socket, "offline", username);
                 exit(0);
