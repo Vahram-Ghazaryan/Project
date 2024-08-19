@@ -140,76 +140,61 @@ void handle_read(std::shared_ptr<tcp::socket> socket, std::shared_ptr<tcp::socke
 }
 
 void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp::socket> server_socket, const std::string& username) {
+    std::atomic<bool> stop_chatting{false};
     auto buffer = std::make_shared<std::array<char, 1024>>();
-    std::atomic<bool> endchat(false);
-    std::mutex mtx;
-    std::condition_variable cv;
 
-    auto read_handler = [client_socket, server_socket, buffer, username, &endchat, &mtx, &cv](const boost::system::error_code& error, std::size_t length) {
+    auto read_handler = [client_socket, server_socket, buffer, username, &stop_chatting](const boost::system::error_code& error, std::size_t length) mutable {
         if (!error) {
             std::string message(buffer->data(), length);
-            if (message.find("/disconnect") == 0) {
-                std::cout << "Disconnecting chat by another user." << std::endl;
-                client_socket->close();
-                notify_server_status(server_socket, "free", username);
-                endchat = true;
-                cv.notify_all();
+            if (message == "/disconnect") {
                 boost::asio::io_context io_context;
-                request_list(server_socket, username);
+                std::cout << "The other client has disconnected." << std::endl;
+                notify_server_status(server_socket, "free", username);
+                client_socket->close();
+                stop_chatting = true;
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
-       	 		handle_read(server_socket, server_socket, io_context, username);
+                handle_read(server_socket, server_socket, io_context, username);
+                return;
             } else {
-                print_message(username, message, false); 
+            	print_message(username, message, false);
+            	start_chat(client_socket, server_socket, username);
             }
         } else {
-            std::cerr << error.message() << std::endl;
+            std::cerr << "Error during read: " << error.message() << std::endl;
             notify_server_status(server_socket, "free", username);
-            endchat = true;
-            cv.notify_all();
         }
     };
 
     client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
 
-    std::thread([client_socket, server_socket, username, &endchat, &mtx, &cv]() {
-        while (true) {
+    std::thread([client_socket, server_socket, username, &stop_chatting]() {
+        while (!stop_chatting) {
             std::string message;
             std::cout << "You: ";
             std::getline(std::cin, message);
 
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                if (endchat) break;
-            }
-
             if (message == "/disconnect") {
                 std::cout << "Disconnecting chat." << std::endl;
                 boost::asio::async_write(*client_socket, boost::asio::buffer("/disconnect"), handle_write);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 client_socket->close();
                 notify_server_status(server_socket, "free", username);
-                {
-                    std::lock_guard<std::mutex> lock(mtx);
-                    endchat = true;
-                }
-                cv.notify_all();
+                stop_chatting = true;
                 break;
             } else if (message == "/exit") {
                 std::cout << "Exiting program." << std::endl;
-                boost::asio::async_write(*client_socket, boost::asio::buffer("/disconnect"), handle_write);
                 client_socket->close();
-                notify_server_status(server_socket, "offline", username);
+                notify_server_status(server_socket, "free", username);
                 exit(0);
             } else {
                 std::string full_message = username + ": " + message;
                 boost::asio::async_write(*client_socket, boost::asio::buffer(full_message), handle_write);
-                print_message("You", message, true); 
+                print_message("You", message, true);
             }
         }
     }).detach();
-
-    std::unique_lock<std::mutex> lock(mtx);
-    cv.wait(lock, [&endchat]() { return endchat.load(); });
 }
+
 
 void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username) {
     auto new_socket = std::make_shared<tcp::socket>(io_context);
@@ -271,8 +256,10 @@ int main(int argc, char* argv[]) {
                     auto acceptor = std::make_shared<tcp::acceptor>(io_context, tcp::endpoint(tcp::v4(), 12347)); // Port for accepting connections
                     std::thread accept_thread(accept_connections, acceptor, std::ref(io_context), server_socket, username);
                     accept_thread.detach();
-
-                    handle_read(server_socket, server_socket, io_context, username);
+					
+					std::thread handle_thread(handle_read, server_socket, server_socket, std::ref(io_context), username);
+                    handle_thread.detach();
+                    
 
                     // Run io_context in a loop to check for pending async operations
                     while (true) {
