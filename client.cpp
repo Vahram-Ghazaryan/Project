@@ -161,9 +161,12 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             }
         } else {
-        	std::cout << "The other client closed the program incorrectly\nPress enter to continue." << std::endl;
-            stop_chatting = true;
-            return;
+        	std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        	if (!stop_chatting) {
+        		std::cout << "The other client closed the program incorrectly\nPress enter to continue." << std::endl;
+        		stop_chatting = true;
+            	return;
+            }
         }
     };
 
@@ -186,6 +189,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
         client_socket->close();
         stop_chatting = true;
+        notify_server_status(server_socket, "free", username);
         break;
     } else if (message == "/exit") {
         std::cout << "Exiting program." << std::endl;
