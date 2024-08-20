@@ -9,7 +9,6 @@
 #include <sstream>
 #include <atomic>
 #include <mutex>
-#include <condition_variable>
 
 using boost::asio::ip::tcp;
 void connect_to_client(const std::string& client_ip, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username);
@@ -34,7 +33,7 @@ void print_message(const std::string& sender, const std::string& message, bool i
     if (is_current_user) {
         std::cout << user_color << std::setw(55) << std::left << time_str << reset_color << std::endl;
     } else {
-        std::cout << other_color << std::setw(55) << std::right << formatted_message << reset_color << std::endl;
+        std::cout << other_color << std::setw(55) << std::right << formatted_message << "\n-----------" << reset_color << std::endl;
     }
 }
 
@@ -95,6 +94,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket, std::shared_ptr<tcp::socke
             } else if (response == "reject") {
                 std::cout << "Connection request rejected by the other client." << std::endl;
                 notify_server_status(server_socket, "waiting", username);
+                boost::asio::async_write(*socket, boost::asio::buffer("wait " + username), handle_write);
             } else if (response.find("IP: ") == 0) {
                 std::string client_ip = response.substr(4);
                 std::cout << "IP address of the selected client: " << client_ip << std::endl;
@@ -107,8 +107,8 @@ void handle_read(std::shared_ptr<tcp::socket> socket, std::shared_ptr<tcp::socke
                 std::getline(std::cin, target_username);
 
                 if (target_username == "wait") {
-                    std::cout << "Switching to standby mode.." << std::endl;
-                    boost::asio::async_write(*socket, boost::asio::buffer("wait"), handle_write);
+                    std::cout << "To return to the previous menu you can restart the program\nSwitching to standby mode.." << std::endl;
+                    boost::asio::async_write(*socket, boost::asio::buffer("wait " + username), handle_write);
                 } else {
                 	std::cout << "Wait for the user to accept the connection.." << std::endl;
                     std::string connect_message = "connect " + target_username;
@@ -140,68 +140,76 @@ void handle_read(std::shared_ptr<tcp::socket> socket, std::shared_ptr<tcp::socke
 }
 
 void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp::socket> server_socket, const std::string& username) {
+	const std::string user_color = "\033[34m";  // Blue
+    const std::string reset_color = "\033[0m";  // Reset to default	
+	
     std::atomic<bool> stop_chatting{false};
     auto buffer = std::make_shared<std::array<char, 1024>>();
-
-    auto read_handler = [client_socket, server_socket, buffer, username, &stop_chatting](const boost::system::error_code& error, std::size_t length) mutable {
+	
+    std::function<void(const boost::system::error_code&, std::size_t)> read_handler;
+	
+    read_handler = [client_socket, server_socket, buffer, username, &stop_chatting, &read_handler](const boost::system::error_code& error, std::size_t length) mutable {
         if (!error) {
             std::string message(buffer->data(), length);
-            if (message == "/disconnect") {
-                boost::asio::io_context io_context;
-                std::cout << "The other client has disconnected." << std::endl;
-                notify_server_status(server_socket, "free", username);
+            if (message.find("/disconnect") == 0) {
                 client_socket->close();
                 stop_chatting = true;
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                handle_read(server_socket, server_socket, io_context, username);
+                std::cout << "The other client has disconnected\nPress enter to continue." << std::endl;    
                 return;
             } else {
-            	print_message(username, message, false);
-            	start_chat(client_socket, server_socket, username);
+                print_message(username, message, false);
+                client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             }
         } else {
-            std::cerr << "Error during read: " << error.message() << std::endl;
-            notify_server_status(server_socket, "free", username);
+        	std::cout << "The other client closed the program incorrectly\nPress enter to continue." << std::endl;
+            stop_chatting = true;
+            return;
         }
     };
 
     client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
 
-    std::thread([client_socket, server_socket, username, &stop_chatting]() {
-        while (!stop_chatting) {
-            std::string message;
-            std::cout << "You: ";
-            std::getline(std::cin, message);
+    while (true) {
 
-            if (message == "/disconnect") {
-                std::cout << "Disconnecting chat." << std::endl;
-                boost::asio::async_write(*client_socket, boost::asio::buffer("/disconnect"), handle_write);
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                client_socket->close();
-                notify_server_status(server_socket, "free", username);
-                stop_chatting = true;
-                break;
-            } else if (message == "/exit") {
-                std::cout << "Exiting program." << std::endl;
-                client_socket->close();
-                notify_server_status(server_socket, "free", username);
-                exit(0);
-            } else {
-                std::string full_message = username + ": " + message;
-                boost::asio::async_write(*client_socket, boost::asio::buffer(full_message), handle_write);
-                print_message("You", message, true);
-            }
-        }
-    }).detach();
+    std::string message;
+    std::cout << user_color << "You\n-----------" << reset_color << std::endl;
+    std::getline(std::cin, message);
+    if (stop_chatting) {
+    	notify_server_status(server_socket, "free", username);
+        break;
+    }
+    if (message == "/disconnect") {
+        std::cout << "Disconnecting chat." << std::endl;
+        boost::asio::io_context io_context;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        boost::asio::async_write(*client_socket, boost::asio::buffer("/disconnect"), handle_write);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        client_socket->close();
+        stop_chatting = true;
+        break;
+    } else if (message == "/exit") {
+        std::cout << "Exiting program." << std::endl;
+        boost::asio::async_write(*client_socket, boost::asio::buffer("/disconnect"), handle_write);
+        client_socket->close();
+        notify_server_status(server_socket, "offline", username);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        exit(0);
+    } else if (!stop_chatting) {
+        std::string full_message = username + ": " + message;
+        boost::asio::async_write(*client_socket, boost::asio::buffer(full_message), handle_write);
+        print_message("You", message, true);
+    }
 }
+
+}
+
 
 
 void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username) {
     auto new_socket = std::make_shared<tcp::socket>(io_context);
     acceptor->async_accept(*new_socket, [new_socket, acceptor, &io_context, server_socket, username](const boost::system::error_code& error) {
         if (!error) {
-            std::cout << "Enter message or 'wait' to wait for incoming connections: " << std::endl;
-
+        	std::cout << "Use /disconnect to disconnect from the other person and /exit to exit the program" << std::endl;
             notify_server_status(server_socket, "no free", username);
             std::thread chat_thread(start_chat, new_socket, server_socket, username);
             chat_thread.detach();
@@ -220,7 +228,7 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
 
     boost::asio::async_connect(*client_socket, client_endpoints, [client_socket, server_socket, username](const boost::system::error_code& error, const tcp::endpoint&) {
         if (!error) {
-            std::cout << "Connected to client. You can now start chatting." << std::endl;
+            std::cout << "Connected to client. You can now start chatting.\nUse /disconnect to disconnect from the other person and /exit to exit the program" << std::endl;
             notify_server_status(server_socket, "no free", username);
             std::thread chat_thread(start_chat, client_socket, server_socket, username);
             chat_thread.detach();
