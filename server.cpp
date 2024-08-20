@@ -7,13 +7,15 @@
 #include <mutex>
 #include <vector>
 #include <unordered_map>
+#include <chrono>
+#include <thread>
 
 using boost::asio::ip::tcp;
 
 std::mutex mutex;
 std::string username_for_other_scope;
 
-void send_list(const std::shared_ptr<tcp::socket>& socket,const std::string& username, std::unordered_map<std::string, std::string>& client_username_ip, bool updated = false) {
+void send_list(const std::shared_ptr<tcp::socket> socket,const std::string username, std::unordered_map<std::string, std::string>& client_username_ip, bool updated = false) {
     std::cout << "Called send_list function" << std::endl;
     std::string response;
     if (updated) {
@@ -32,7 +34,7 @@ void send_list(const std::shared_ptr<tcp::socket>& socket,const std::string& use
         while (std::getline(file, line)) {
             end_of_ip_address = line.find(" ");
             if (end_of_ip_address != std::string::npos) {
-                if (line.substr(end_of_ip_address + 1, username.size() + 1) == username) {
+                if (line.substr(end_of_ip_address + 1, username.size()) == username) {
                     continue;
                 }
                 response += line.substr(end_of_ip_address + 1) + "\n";
@@ -49,18 +51,28 @@ void send_list(const std::shared_ptr<tcp::socket>& socket,const std::string& use
     });
 }
 
-void send_updated_list(const std::shared_ptr<tcp::socket>& socket, std::string username, std::unordered_map<std::string,std::string>& client_username_ip, std::unordered_map<std::string, bool>& changed_list) {
-    auto it = changed_list.find(username);
-    if (it != changed_list.end()) {
-        if (it -> second) {
-            send_list(socket, username, client_username_ip, true);
-            changed_list[username] = false;
-            return;
+void send_updated_list(const std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_ip_sockets, std::unordered_map<std::string,std::string>& client_username_ip, std::unordered_map<std::string, bool>& changed_list, std::unordered_map<std::string, bool>& waiting_clinets) {
+    for (auto& element: client_username_ip) {
+        auto changed = changed_list.find(element.first);
+        if (changed != changed_list.end()) {
+            if (changed -> second) {
+                auto waiting = waiting_clinets.find(element.first);
+                if (waiting != waiting_clinets.end()) {
+                    if (waiting -> second) {
+                        auto find_socket = client_ip_sockets.find(element.second);
+                        if (find_socket != client_ip_sockets.end()) {
+                            send_list(find_socket -> second, element.first, client_username_ip, true);
+                            changed_list[element.first] = false;
+                            return;    
+                        }
+                    }
+                }
+            }
         }
-    }
+    } 
 }
 
-void change_status(const std::shared_ptr<tcp::socket>& socket, const std::string& received_data, const int& end_of_request, std::string& username, std::unordered_map<std::string, std::string>& client_username_ip, std::unordered_map<std::string, bool>& changed_list ) {
+void change_status(const std::shared_ptr<tcp::socket> socket, const std::string received_data, const int& end_of_request, std::string username, std::unordered_map<std::string, std::string>& client_username_ip, std::unordered_map<std::string, bool>& changed_list, std::unordered_map<std::string, bool>& waiting_clients, std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_ip_sockets) {
     std::cout << "Called change_status" << std::endl;
     std::ifstream file("clients_info.txt");
     if (!file.is_open()) {
@@ -86,6 +98,7 @@ void change_status(const std::shared_ptr<tcp::socket>& socket, const std::string
         }
     }
     file.close();
+    username = username.substr(0, username.size() - 1);
     find_end_of_ip_address = changed_line.find(username);
     changed_line = changed_line.substr(0, end_of_request + find_end_of_ip_address);
     std::string change = received_data.substr(end_of_request + 1);
@@ -93,9 +106,9 @@ void change_status(const std::shared_ptr<tcp::socket>& socket, const std::string
         changed_line += " online no free\n";
     } else if (change == "free" ) {
         changed_line += " online free\n"; 
-        send_list(socket, username, client_username_ip);
     } else if(change == "wait") {
         changed_line += " waiting\n";
+        waiting_clients[username] = true;
     } else if (change == "offline") {
         changed_line = "";
     }
@@ -111,12 +124,18 @@ void change_status(const std::shared_ptr<tcp::socket>& socket, const std::string
         file_for_change << lines[i] << std::endl;
     }
     file_for_change.close();
-    for (auto & element: changed_list) {
+    if (change == "free") {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        send_list(socket, username, client_username_ip);
+    }
+    for (auto& element: changed_list) {
         if (element.first == username.substr(0, username.size() - 1)) {
             continue;
         }
         element.second = true;
     }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    send_updated_list(client_ip_sockets, client_username_ip, changed_list, waiting_clients);
 }
 
 void connection_request(const std::string& client_ip, const std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_sockets, std::shared_ptr<std::string> username) {
@@ -217,6 +236,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
     static std::unordered_map<std::string, std::string> client_username_ip;
     static std::unordered_map<std::string, bool> changed_list;
     static std::unordered_map<std::string, std::shared_ptr<tcp::socket>> client_ip_sockets;
+    static std::unordered_map<std::string, bool> waiting_clients;
     socket->async_read_some(boost::asio::buffer(*buffer), [socket, buffer, start_connection, username_for_other_scope, client_ip] (const boost::system::error_code& error, std::size_t length) {
     if (!error) {
         std::string recived_data(buffer -> data(),length);
@@ -257,6 +277,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
             client_ip_sockets[client_ip] = socket;
             client_username_ip[username] = client_ip;
             changed_list[username] = false;
+            waiting_clients[username] = false;
             std::cout << username << " socket is " << client_ip_sockets[client_ip] << std::endl;
 			if (!file.is_open()) {
                 std::cerr << "Unable to open file for write" << std::endl;
@@ -272,10 +293,6 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
             send_list(socket, username, client_username_ip); 
             handle_read(socket, false, username_for_other_scope);
         } 
-        if (request == "update list") {
-            username = recived_data.substr(end_of_request + 1);
-            send_updated_list(socket, username, client_username_ip, changed_list);
-        }
         if (request == "connect") {
             connection_request(find_ip_address(recived_data, end_of_request, client_username_ip), client_ip_sockets, username_for_other_scope);
             handle_read(socket, false, username_for_other_scope);
@@ -290,19 +307,21 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
         }
         auto it = client_username_ip.find(request);
         if (it !=  client_username_ip.end()) {
-            change_status(socket, recived_data, end_of_request, request, client_username_ip, changed_list);
+            change_status(socket, recived_data, end_of_request, request, client_username_ip, changed_list, waiting_clients, client_ip_sockets);
         }
         handle_read(socket, false, username_for_other_scope);
     } else {
         std::cerr << "Error during read: " << error.message() << std::endl;
-        change_status(socket, *username_for_other_scope + " offline", username_for_other_scope -> size(), *username_for_other_scope, client_username_ip, changed_list);
-        auto it = client_username_ip.find(username_for_other_scope -> substr(0, username_for_other_scope -> size() - 1));
+        change_status(socket, *username_for_other_scope + " offline", username_for_other_scope -> size(), *username_for_other_scope, client_username_ip, changed_list, waiting_clients, client_ip_sockets);
+        auto it = client_username_ip.find(*username_for_other_scope);
         std::string ip_address_for_delete_socket;
         if (it != client_username_ip.end()) {
             ip_address_for_delete_socket = it -> second;
             client_ip_sockets.erase(ip_address_for_delete_socket);
         }
-        client_username_ip.erase(username_for_other_scope -> substr(0, username_for_other_scope -> size() - 1));
+        client_username_ip.erase(*username_for_other_scope);
+        changed_list.erase(*username_for_other_scope);
+        waiting_clients.erase(*username_for_other_scope);
         }
     });
 }
