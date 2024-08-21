@@ -213,11 +213,11 @@ void send_answer_of_connection(std::string& received_data, const std::unordered_
         auto find_receiver_ip = client_username_ip.find(receiver_username);
         if (find_receiver_ip != client_username_ip.end()) {
             receiver_ip = find_receiver_ip -> second;
+            answer = "IP: " + receiver_ip;
         } else {
             std::cerr << "Receiver ip not found" << std::endl;
-            return;
+            answer = "ip not found";
         }     
-        answer = "IP: " + receiver_ip;
     } else {
         answer = "reject";
     }
