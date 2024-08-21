@@ -11,8 +11,34 @@
 #include <mutex>
 #include <fstream>
 #include <functional>
+#include <unordered_map>
 
 using boost::asio::ip::tcp;
+
+std::unordered_map<std::string, std::string> emoji_map = {
+    {":smile", "😊"},
+    {":sad", "😢"},
+    {":laugh", "😂"},
+    {":angry", "😡"},
+    {":wink", "😉"},
+    {":heart", "❤️"}
+};
+
+std::string replace_emojis(const std::string& message) {
+    std::string result = message;
+    for (const auto& pair : emoji_map) {
+        std::string command = pair.first;
+        std::string emoji = pair.second;
+
+        size_t pos = 0;
+        while ((pos = result.find(command, pos)) != std::string::npos) {
+            result.replace(pos, command.length(), emoji);
+            pos += emoji.length();
+        }
+    }
+    return result;
+}
+
 void connect_to_client(const std::string& client_ip, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username);
 
 std::string current_time() {
@@ -229,7 +255,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 std::cout << "Receiving file: " << path << std::endl;
                 receive_file(path, client_socket);
             } else {
-                std::cout << "Message from other client: " << message << std::endl;
+                print_message(username, message, false);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             }
         } else {
@@ -270,7 +296,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             std::string path = message.substr(6); // Extract the path from the command
             send_file(path, client_socket);
         } else if (!stop_chatting) {
-            std::string full_message = username + ": " + message;
+            std::string full_message = username + ": " + replace_emojis(message);
             boost::asio::async_write(*client_socket, boost::asio::buffer(full_message), handle_write);
             print_message("You", message, true);
         }
@@ -284,7 +310,7 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
     auto new_socket = std::make_shared<tcp::socket>(io_context);
     acceptor->async_accept(*new_socket, [new_socket, acceptor, &io_context, server_socket, username](const boost::system::error_code& error) {
         if (!error) {
-        	std::cout << "Use /disconnect to disconnect from the other person and /exit to exit the program" << std::endl;
+        	std::cout << "Use /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
             notify_server_status(server_socket, "no free", username);
             std::thread chat_thread(start_chat, new_socket, server_socket, username);
             chat_thread.detach();
@@ -303,7 +329,7 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
 
     boost::asio::async_connect(*client_socket, client_endpoints, [client_socket, server_socket, username](const boost::system::error_code& error, const tcp::endpoint&) {
         if (!error) {
-            std::cout << "Connected to client. You can now start chatting.\nUse /disconnect to disconnect from the other person and /exit to exit the program" << std::endl;
+            std::cout << "Connected to client. You can now start chatting.\nUse /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
             notify_server_status(server_socket, "no free", username);
             std::thread chat_thread(start_chat, client_socket, server_socket, username);
             chat_thread.detach();
