@@ -201,7 +201,6 @@ std::string extract_filename(const std::string& file_path) {
 
 void send_file(const std::string& file_path, boost::asio::ip::tcp::socket& socket) {
   	std::thread([&socket, file_path]() {
-        std::cout << "start" << std::endl;
         try {
             std::ifstream file(file_path, std::ios::binary | std::ios::ate);
             if (!file) {
@@ -217,7 +216,6 @@ void send_file(const std::string& file_path, boost::asio::ip::tcp::socket& socke
                 std::cerr << "Failed to receive confirmation: " << confirmation_str << std::endl;
                 return;
             }
-            std::cout << "OKKK" << std::endl;
 
             char buffer[1024];
             while (file.read(buffer, sizeof(buffer))) {
