@@ -235,8 +235,8 @@ void send_file(const std::string& file_path, boost::asio::ip::tcp::socket& socke
     
 }
 
-void receive_file(boost::asio::ip::tcp::socket& socket, std::string input) {
-   std::thread([&socket, input]() {
+void receive_file(boost::asio::ip::tcp::socket& socket, std::string input, std::atomic<bool>& receive) {
+   std::thread([&socket, input, &receive]() {
         try {
          	
             std::string filename;         
@@ -251,6 +251,7 @@ void receive_file(boost::asio::ip::tcp::socket& socket, std::string input) {
             std::ofstream file(std::string(dir/filename), std::ios::binary);
             if (!file) {
                 std::cerr << "Failed to create file.\n";
+                receive = false;
                 return;
             }
 
@@ -265,10 +266,12 @@ void receive_file(boost::asio::ip::tcp::socket& socket, std::string input) {
                 total_bytes_received += bytes_received;
             }
             std::cout << "File received successfully." << std::endl;
-
+			receive = false;
             file.close(); 
         } catch (const std::exception& e) {
             std::cerr << "Exception in receive_file: " << e.what() << '\n';
+            receive = false;
+
         }
     }).detach();
 }
@@ -276,13 +279,13 @@ void receive_file(boost::asio::ip::tcp::socket& socket, std::string input) {
 void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp::socket> server_socket, const std::string& username) {
     const std::string user_color = "\033[34m";  // Blue
     const std::string reset_color = "\033[0m";  // Reset to default
-
+	std::atomic<bool> receive(false);
     std::atomic<bool> stop_chatting{false};
     auto buffer = std::make_shared<std::array<char, 1024>>();
 
     std::function<void(const boost::system::error_code&, std::size_t)> read_handler;
 
-    read_handler = [client_socket, server_socket, buffer, username, &stop_chatting, &read_handler](const boost::system::error_code& error, std::size_t length) mutable {
+    read_handler = [client_socket, server_socket, buffer, username, &stop_chatting, &read_handler, &receive](const boost::system::error_code& error, std::size_t length) mutable {
         if (!error) {
             std::string message(buffer->data(), length);
             if (message.find("/disconnect") == 0) {
@@ -293,9 +296,10 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             } else if (message.find("/file") == 0) {
                 std::string path = message.substr(6); // Extract the filename from the message
                 std::cout << "Receiving file: " << path << std::endl;
-                receive_file(*client_socket, path);
+                receive = true;
+                receive_file(*client_socket, path, receive);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
-            } else {
+            } else if (!receive) {
                 print_message(username, message, false);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             }
@@ -348,7 +352,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         	boost::asio::async_write(*client_socket, boost::asio::buffer("/file " + path + ":" + file_size_str), handle_write);
             send_file(path, *client_socket);
             client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
-        } else if (!stop_chatting) {
+        } else if (!stop_chatting && message != "") {
             std::string full_message = username + ": " + replace_emojis(message);
             boost::asio::async_write(*client_socket, boost::asio::buffer(full_message), handle_write);
             print_message("You", message, true);
