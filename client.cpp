@@ -10,9 +10,11 @@
 #include <atomic>
 #include <mutex>
 #include <fstream>
+#include <filesystem>
 #include <functional>
 #include <unordered_map>
 
+namespace fs = std::filesystem;
 using boost::asio::ip::tcp;
 
 std::unordered_map<std::string, std::string> emoji_map = {
@@ -171,66 +173,106 @@ void handle_read(std::shared_ptr<tcp::socket> socket, std::shared_ptr<tcp::socke
     });
 }
 
-void send_file(const std::string& path, std::shared_ptr<tcp::socket> client_socket) {
-    std::ifstream file(path, std::ios::binary | std::ios::ate);
-    if (!file.is_open()) {
-        std::cerr << "Error: Could not open file " << path << std::endl;
-        return;
-    }
-    
-    std::streamsize file_size = file.tellg();
-    file.seekg(0, std::ios::beg);
+void parse_file_info(const std::string& input, std::string& filename, std::streamsize& file_size) {
+ 
+    std::size_t space_pos = input.find(' ');
+    std::size_t colon_pos = input.find(':', space_pos);
 
-    auto buffer = std::make_shared<std::vector<char>>(1024);
+    if (space_pos != std::string::npos && colon_pos != std::string::npos) {
+ 
+        filename = input.substr(space_pos + 1, colon_pos - space_pos - 1);
 
-    std::function<void(boost::system::error_code, std::size_t)> write_handler;
-    write_handler = [buffer, client_socket, &file, write_handler](boost::system::error_code ec, std::size_t /*length*/) mutable {
-        if (ec) {
-            std::cerr << "Error during file transfer: " << ec.message() << std::endl;
-            return;
+        std::string size_str = input.substr(colon_pos + 1);
+        try {
+            file_size = std::stoll(size_str); 
+        } catch (const std::invalid_argument&) {
+            std::cerr << "Invalid size value: " << size_str << std::endl;
+        } catch (const std::out_of_range&) {
+            std::cerr << "Size value out of range: " << size_str << std::endl;
         }
-        if (file) {
-            if (file.read(buffer->data(), buffer->size()) || file.gcount() > 0) {
-                boost::asio::async_write(*client_socket, boost::asio::buffer(buffer->data(), file.gcount()), write_handler);
-            } else {
-                std::cerr << "Error reading from file " << std::endl;
-            }
-        } else {
-            std::cout << "File transfer completed successfully." << std::endl;
-        }
-    };
-
-    if (file.read(buffer->data(), buffer->size()) || file.gcount() > 0) {
-        boost::asio::async_write(*client_socket, boost::asio::buffer(buffer->data(), file.gcount()), write_handler);
     } else {
-        std::cerr << "Error reading from file " << std::endl;
+        std::cerr << "Invalid input format." << std::endl;
     }
 }
 
+std::string extract_filename(const std::string& file_path) {
+    return file_path.substr(file_path.find_last_of("/\\") + 1);
+}
 
-void receive_file(const std::string& path, std::shared_ptr<tcp::socket> client_socket) {
-    std::ofstream file(path, std::ios::binary);
-    if (!file) {
-        std::cout << "Error creating file: " << path << std::endl;
-        return;
-    }
+void send_file(const std::string& file_path, boost::asio::ip::tcp::socket& socket) {
+  	std::thread([&socket, file_path]() {
+        std::cout << "start" << std::endl;
+        try {
+            std::ifstream file(file_path, std::ios::binary | std::ios::ate);
+            if (!file) {
+                std::cerr << "Failed to open file.\n";
+                return;
+            }
+		file.seekg(0, std::ios::beg);
 
-    auto buffer = std::make_shared<std::vector<char>>(1024);
+            std::vector<char> confirmation(128); 
+            size_t length = socket.read_some(boost::asio::buffer(confirmation));
+            std::string confirmation_str(confirmation.data(), length);
+            if (confirmation_str.find("OK") != 0) {
+                std::cerr << "Failed to receive confirmation: " << confirmation_str << std::endl;
+                return;
+            }
+            std::cout << "OKKK" << std::endl;
 
-    std::function<void(boost::system::error_code, std::size_t)> read_handler;
-    read_handler = [buffer, client_socket, &file, read_handler](boost::system::error_code ec, std::size_t length) mutable {
-        if (!ec && length > 0) {
-            file.write(buffer->data(), length);
-            client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
-        } else if (ec) {
-            std::cout << "File reception failed: " << ec.message() << std::endl;
-        } else {
-            std::cout << "File reception completed." << std::endl;
-            file.close();
+            char buffer[1024];
+            while (file.read(buffer, sizeof(buffer))) {
+                boost::asio::write(socket, boost::asio::buffer(buffer, file.gcount()));
+            }
+            if (file.gcount() > 0) {
+                boost::asio::write(socket, boost::asio::buffer(buffer, file.gcount()));
+                
+            }
+            std::cout << "File sent successfully." << std::endl;
+
+            file.close(); 
+        } catch (const std::exception& e) {
+            std::cerr << "Exception in send_file: " << e.what() << '\n';
         }
-    };
+    }).detach();
+    
+}
 
-    client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
+void receive_file(boost::asio::ip::tcp::socket& socket, std::string input) {
+   std::thread([&socket, input]() {
+        try {
+         	
+            std::string filename;         
+            std::streamsize file_size;
+            parse_file_info(" " + input, filename, file_size);
+            
+            fs::path dir = "received_files";
+    		if (!fs::exists(dir)) {
+        		fs::create_directory(dir);
+    		}
+            
+            std::ofstream file(std::string(dir/filename), std::ios::binary);
+            if (!file) {
+                std::cerr << "Failed to create file.\n";
+                return;
+            }
+
+            
+            boost::asio::write(socket, boost::asio::buffer("OK"));
+
+            char buffer[1024];
+            std::streamsize total_bytes_received = 0;
+            while (total_bytes_received < file_size) {
+                size_t bytes_received = socket.read_some(boost::asio::buffer(buffer));
+                file.write(buffer, bytes_received);
+                total_bytes_received += bytes_received;
+            }
+            std::cout << "File received successfully." << std::endl;
+
+            file.close(); 
+        } catch (const std::exception& e) {
+            std::cerr << "Exception in receive_file: " << e.what() << '\n';
+        }
+    }).detach();
 }
 
 void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp::socket> server_socket, const std::string& username) {
@@ -251,9 +293,10 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 std::cout << "The other client has disconnected\nPress enter to continue." << std::endl;
                 return;
             } else if (message.find("/file") == 0) {
-                std::string path = "received_" + message.substr(6); // Extract the filename from the message
+                std::string path = message.substr(6); // Extract the filename from the message
                 std::cout << "Receiving file: " << path << std::endl;
-                receive_file(path, client_socket);
+                receive_file(*client_socket, path);
+                client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             } else {
                 print_message(username, message, false);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
@@ -293,8 +336,20 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             exit(0);
         } else if (message.find("/file") == 0) {
-            std::string path = message.substr(6); // Extract the path from the command
-            send_file(path, client_socket);
+        	std::string path = message.substr(6);
+        	std::ifstream file(path, std::ios::binary | std::ios::ate);
+            if (!file) {
+                std::cerr << "Failed to open file.\n";
+                return;
+            }
+            std::streamsize file_size = file.tellg();
+            file.seekg(0, std::ios::beg);
+			file.close();
+            std::string file_size_str = std::to_string(file_size);
+            
+        	boost::asio::async_write(*client_socket, boost::asio::buffer("/file " + path + ":" + file_size_str), handle_write);
+            send_file(path, *client_socket);
+            client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
         } else if (!stop_chatting) {
             std::string full_message = username + ": " + replace_emojis(message);
             boost::asio::async_write(*client_socket, boost::asio::buffer(full_message), handle_write);
