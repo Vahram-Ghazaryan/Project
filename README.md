@@ -10,9 +10,9 @@ Description
 
 ●	Create a Linux terminal chat
 ●	It should also be able to transfer files
-●	t should consist of server and client programs written in c++
-●	the server should be a connection to connect for the first time
-●	then the connection should be direct to the clients between serverless.
+●	It should consist of server and client programs written in c++
+●	The server should be a connection to connect for the first time
+●	Then the connection should be direct to the clients between serverless.
 Detailed description
 The project will consist of 2 programs: client and server
 Server:
