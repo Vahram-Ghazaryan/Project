@@ -16,10 +16,9 @@ std::mutex mutex;
 std::string username_for_other_scope;
 
 void send_list(const std::shared_ptr<tcp::socket> socket,const std::string username, std::unordered_map<std::string, std::string>& client_username_ip, bool updated = false) {
-    std::cout << "Called send_list function" << std::endl;
     std::string response;
     if (updated) {
-        response = "-----------LIST UPDATED----------\n";
+        response = "-----------LIST UPDATED---------\n";
     } else {
         response = "-----------THE LIST-------------\n";
     }
@@ -73,7 +72,6 @@ void send_updated_list(const std::unordered_map<std::string, std::shared_ptr<tcp
 }
 
 void change_status(const std::shared_ptr<tcp::socket> socket, const std::string received_data, const int& end_of_request, std::string username, std::unordered_map<std::string, std::string>& client_username_ip, std::unordered_map<std::string, bool>& changed_list, std::unordered_map<std::string, bool>& waiting_clients, std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_ip_sockets) {
-    std::cout << "Called change_status" << std::endl;
     std::ifstream file("clients_info.txt");
     if (!file.is_open()) {
         std::cerr << "Unable to open file for change" << std::endl;
@@ -91,10 +89,8 @@ void change_status(const std::shared_ptr<tcp::socket> socket, const std::string 
         ++line_number;
         lines.push_back(line);
         if (line.find(username) != std::string::npos) {
-            std::cout << "Finded username is " << username << std::endl;
             target_line = line_number;
             changed_line = line;
-            std::cout << "Line to changed " << line <<  std::endl;
         }
     }
     file.close();
@@ -118,10 +114,7 @@ void change_status(const std::shared_ptr<tcp::socket> socket, const std::string 
     std::ofstream file_for_change("clients_info.txt");
     for(int i = 0; i < lines.size(); ++i) {
         if (i == target_line - 1) {
-            std::cout << "The line is changed" << std::endl;
             file_for_change << changed_line;
-            std::cout << "Changed line: " << changed_line << std::endl;
-            std::cout << "target line: " << target_line << std::endl;
             continue;
         }
         file_for_change << lines[i] << std::endl;
@@ -143,7 +136,6 @@ void change_status(const std::shared_ptr<tcp::socket> socket, const std::string 
 }
 
 void connection_request(const std::string& client_ip, const std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_sockets, std::shared_ptr<std::string> username) {
-    std::cout << "Called connection_request function" << std::endl;
     if (client_ip == "") {
         std::cerr << "Ip address not found" << std::endl;
         return;
@@ -153,18 +145,13 @@ void connection_request(const std::string& client_ip, const std::unordered_map<s
     auto it = client_sockets.find(client_ip);
     if (it != client_sockets.end()) {
         socket = it -> second;
-        std::cout << "Client ip is founded in map" << std::endl; 
-        std::cout << "Socket is " << socket << std::endl;
     } else {
         std::cerr << "Client ip not found in map:" << client_ip<< std::endl;
         return;
     }
     if (socket) {
         std::string request = "request " + *username;
-        std::cout << "The request is " << request << std::endl;
-        std::cout << "The client ip is " << it -> first << std::endl; 
         boost::asio::async_write(*socket, boost::asio::buffer(request), [socket, request] (const boost::system::error_code& write_error, std::size_t) {
-        std::cout << "Received data" << request << std::endl;
             if (write_error) {
                 std::cerr << "Error during write " << write_error.message() << std::endl;
             }
@@ -173,11 +160,8 @@ void connection_request(const std::string& client_ip, const std::unordered_map<s
 }
 
 std::string find_ip_address(std::string received_data, int end_of_request, const std::unordered_map<std::string, std::string>& client_username_ip, std::unordered_map<std::string, bool>& changed_list) {
-    std::cout << "Called find_ip_address function" << std::endl;
     int find_username = 0;
-    std::cout << "The recived data is " << received_data << std::endl;
     std::string username = received_data.substr(end_of_request + 1);
-    std::cout << "The username is " << username << std::endl;
     auto it = client_username_ip.find(username);
     changed_list[username] = false;
     std::string ip_address;
@@ -190,7 +174,6 @@ std::string find_ip_address(std::string received_data, int end_of_request, const
 }
 
 void send_answer_of_connection(std::string& received_data, const std::unordered_map<std::string, std::string>& client_username_ip, const std::unordered_map<std::string, std::shared_ptr<tcp::socket>>& client_ip_sockets, std::unordered_map<std::string, bool>& changed_list) {
-    std::cout << "Called send_answer_of_connection" << std::endl;
     std::lock_guard<std::mutex> lock(mutex);
     std::string request = received_data.substr(0, 6);
     received_data = received_data.substr(12);
@@ -198,8 +181,7 @@ void send_answer_of_connection(std::string& received_data, const std::unordered_
     std::string answer;
     std::shared_ptr<tcp::socket> requester_socket;
     std::string requester_ip;
-    std::string requester_username = received_data.substr(find_end_of_username + 5);
-    std::cout << "The requester is " << requester_username << std::endl;       
+    std::string requester_username = received_data.substr(find_end_of_username + 5);       
     auto find_requester_ip = client_username_ip.find(requester_username);
     if (find_requester_ip != client_username_ip.end()) {
         requester_ip = find_requester_ip -> second;
@@ -214,13 +196,11 @@ void send_answer_of_connection(std::string& received_data, const std::unordered_
     if (request == "accept") {
         std::string receiver_username = received_data.substr(0, find_end_of_username);
         std::string receiver_ip;
-        std::cout << "The receiver username is " << receiver_username << std::endl;
         auto find_receiver_ip = client_username_ip.find(receiver_username);
         if (find_receiver_ip != client_username_ip.end()) {
             receiver_ip = find_receiver_ip -> second;
             answer = "IP: " + receiver_ip;
         } else {
-            std::cerr << "Receiver ip not found" << std::endl;
             answer = "ip not found";
         }     
     } else {
@@ -236,7 +216,6 @@ void send_answer_of_connection(std::string& received_data, const std::unordered_
 void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std::shared_ptr<std::string> username_for_other_scope) {
     static bool open_file_first_time = true;
     auto buffer = std::make_shared<std::array<char, 1024>>();
-    std::cout << "Called handle_read function" << std::endl;
     std::string client_ip = socket -> remote_endpoint().address().to_string();                                                                                                                                                     
     static std::unordered_map<std::string, std::string> client_username_ip;
     static std::unordered_map<std::string, bool> changed_list;
@@ -245,15 +224,13 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
     socket->async_read_some(boost::asio::buffer(*buffer), [socket, buffer, start_connection, username_for_other_scope, client_ip] (const boost::system::error_code& error, std::size_t length) {
     if (!error) {
         std::string recived_data(buffer -> data(),length);
-		std::cout << "Received data: " << recived_data << std::endl;
         int end_of_request = recived_data.find(" ");
         std::string request = recived_data.substr(0, end_of_request);
-        std::cout << request << std::endl;
         std::string username;
         if (end_of_request != std::string::npos) {
             std::string request = recived_data.substr(0, end_of_request);
         }
-		if (start_connection) { // Write information about clients
+		if (start_connection) {
             username = recived_data.substr(end_of_request + 1);
             auto it = client_username_ip.find(username);
             if (it != client_username_ip.end()) {
@@ -278,12 +255,10 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
                 open_file_first_time = false;
             }
             std::ofstream file("clients_info.txt", std::ios::app);
-			std::cout << "File opened for write" << std::endl;
             client_ip_sockets[client_ip] = socket;
             client_username_ip[username] = client_ip;
             changed_list[username] = false;
             waiting_clients[username] = false;
-            std::cout << username << " socket is " << client_ip_sockets[client_ip] << std::endl;
 			if (!file.is_open()) {
                 std::cerr << "Unable to open file for write" << std::endl;
                 handle_read(socket, false, username_for_other_scope);
@@ -340,7 +315,6 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
 }
 
 void start_accept(boost::asio::io_context& io_context, tcp::acceptor& acceptor) {	
-    std::cout << "Called start_accept function" << std::endl;
 	auto socket = std::make_shared<tcp::socket>(io_context);
     auto username_for_other_scope = std::make_shared<std::string>();
     acceptor.async_accept(*socket, [socket, &acceptor, &io_context, username_for_other_scope](const boost::system::error_code& error) {
