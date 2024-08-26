@@ -120,6 +120,10 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 std::string reply;
                 std::getline(std::cin, reply);
+                while (!(reply == "accept" || reply == "reject")) {
+                    std::cerr << "Wrong command!!! Input again\t";
+                    std::getline(std::cin, reply);                    
+                }
 
                 if (reply == "accept") {
                     std::string response_message = "accept from " + username + " for " + requester;
@@ -141,7 +145,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                 std::string client_ip = response.substr(4);
                 std::cout << "IP address of the selected client: " << client_ip << std::endl;
                 connect_to_client(client_ip, io_context, server_socket, username);
-            } else {
+            } else { 
                 std::thread([username, server_socket, response, socket, &io_context, acception]() {
                     std::string text;
                     if (response.find("ip not found") == 0) {
@@ -152,22 +156,57 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                         text = "Online clients:\n";
                     }
 
-                    std::cout << text << response << std::endl;
-                    
+                std::cout << text << response << std::endl;           	
+                std::fstream file;
+                std::unordered_map<std::string, bool> clients_list;
+                file.open("online_clinets.txt", std::ios::in | std::ios::out | std::ios::trunc);
+                if (file.is_open()) {
+                    if (response.find("There is no online user") == std::string::npos && response.size() > 35) {
+                        std::string list = response.substr(33);
+                        file << list;
+                        file.seekg(0);
+                        std::string line;
+                        int end_of_username = 0;
+                        std::string find_username;
+                        if (!clients_list.empty()) {
+                            clients_list.clear();
+                        }
+                        while (std::getline(file, line)) {
+                            end_of_username = line.find(" ");
+                            if (end_of_username != std::string::npos) {
+                                find_username = line.substr(0, end_of_username);
+                                if (line.find("no free") != std::string::npos) {
+                                    clients_list[find_username] = false;
+                                } else {
+                                    clients_list[find_username] = true;
+                                }
+                            }
+                        }
+                    } else {
+                        clients_list.clear();
+                    }          
+                    file.close();
+                } else {
+                    std::cerr << "Error during open file" << std::endl;
+                }
                     std::cout << "Enter the username of the client you want to connect to (or 'wait' to wait for incoming connections): ";
                     std::string target_username;
                     std::getline(std::cin, target_username);
-                  
-                    if (acception->load()) { 
-                        std::cout << "Accept or reject (accept/reject): ";
-                    }
+                    while (clients_list.find(target_username) == clients_list.end() || clients_list[target_username] == false) {
+                        if (acception->load()) { 
+                            std::cout << "Accept or reject (accept/reject): ";
+                            break;
+                        }
+                        if (clients_list.find(target_username) == clients_list.end()) { 
+                            std::cerr << "There is no user with that name!!! Input again\t";
+                        } else {
+                            std::cerr << "The user is no free!!! Input other username\t";
+                        }
+                            std::getline(std::cin, target_username);
+                    }                  
                      
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     if (!acception->load()) { 
-                        if (target_username == "wait") {
-                            std::cout << "To return to the previous menu you can restart the program\nSwitching to standby mode.." << std::endl;
-                            notify_server_status(server_socket, "waiting", username);
-                        } else {
                             std::cout << "Wait for the user to accept the connection.." << std::endl;
                             std::string connect_message = "connect " + target_username;
                             boost::asio::async_write(*socket, boost::asio::buffer(connect_message), handle_write);
@@ -192,7 +231,6 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                                     std::cerr << "Error during read: " << error.message() << std::endl;
                                 }
                             });
-                        }
                     }
                 }).detach();
             }
@@ -484,3 +522,4 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
