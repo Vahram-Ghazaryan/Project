@@ -96,135 +96,116 @@ void request_list(std::shared_ptr<tcp::socket> server_socket, const std::string&
         }
     });
 }
+std::atomic<bool> acception(false);
 
-std::string write_username(std::unordered_map<std::string, bool> clients_list) {
-    std::string target_username;
-    std::cout << "Enter the username of the client you want to connect to (or 'wait' to wait for incoming connections): ";
-    std::getline(std::cin, target_username);
-    while (clients_list.find(target_username) == clients_list.end() || clients_list[target_username] == false) {
-        if (target_username == "wait") {
-            break;
-        }
-        if (clients_list.find(target_username) == clients_list.end()) { 
-            std::cerr << "There is no user with that name!!! Input again\t";
-        } else {
-            std::cerr << "The user is no free!!! Input other username\t";
-        }
-        std::getline(std::cin, target_username);
-    }
-    return target_username;
-}
-
-std::string write_accept_or_reject() {
-    std::string reply;
-    std::cout << "Accept or reject (accept/reject): ";
-    std::getline(std::cin, reply);
-    while (!(reply == "accept" || reply == "reject")) {
-        std::cerr << "Wrong command!!! Input again\t";
-        std::getline(std::cin, reply);
-    }
-    return reply;
-}
-
-void handle_read(std::shared_ptr<tcp::socket> socket, std::shared_ptr<tcp::socket> server_socket, boost::asio::io_context& io_context, const std::string& username) {
+void handle_read(std::shared_ptr<tcp::socket> socket, 
+                 std::shared_ptr<tcp::socket> server_socket, 
+                 boost::asio::io_context& io_context, 
+                 const std::string& username, 
+                 std::shared_ptr<std::atomic<bool>> acception) {
+    
     auto buffer = std::make_shared<std::array<char, 1024>>();
-    socket->async_read_some(boost::asio::buffer(*buffer), [socket, server_socket, buffer, &io_context, username](const boost::system::error_code& error, std::size_t length) {
+
+    socket->async_read_some(boost::asio::buffer(*buffer), 
+    [socket, server_socket, buffer, &io_context, username, acception]
+    (const boost::system::error_code& error, std::size_t length) {
         if (!error) {
             std::string response(buffer->data(), length);
-            if (response.rfind("request ", 0) == 0) {
+
+            if (response.find("request ", 0) == 0) {
+                
                 std::string requester = response.substr(8);
-                std::cout << "Connection request from: " << requester << std::endl;
-                std::string reply = write_accept_or_reject();
+                std::cout << "\nConnection request from: " << requester << " Press ENTER to continue." << std::endl;
+                acception->store(true);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::string reply;
+                std::getline(std::cin, reply);
+
                 if (reply == "accept") {
                     std::string response_message = "accept from " + username + " for " + requester;
                     boost::asio::async_write(*socket, boost::asio::buffer(response_message), handle_write);
                     std::cout << "Connection accepted. You can now start chatting." << std::endl;
                     notify_server_status(server_socket, "no free", username);
                 } else if (reply == "reject") {
+                	acception->store(false);
                     std::string response_message = "reject from " + username + " for " + requester;
                     boost::asio::async_write(*socket, boost::asio::buffer(response_message), handle_write);
                     std::cout << "Connection rejected." << std::endl;
-                    notify_server_status(server_socket, "waiting", username);
+                    notify_server_status(server_socket, "free", username);
                 }
+
             } else if (response == "reject") {
                 std::cout << "Connection request rejected by the other client." << std::endl;
-                notify_server_status(server_socket, "waiting", username);
+                notify_server_status(server_socket, "free", username);
             } else if (response.find("IP: ") == 0) {
                 std::string client_ip = response.substr(4);
                 std::cout << "IP address of the selected client: " << client_ip << std::endl;
                 connect_to_client(client_ip, io_context, server_socket, username);
             } else {
-            	std::string text;
-            	if (response.find("ip not found") == 0){
-            		text = "Username not found.";
-            	} else text = "Online clients:\n";
-                std::cout << text << response << std::endl;
-                static std::unordered_map<std::string, bool> clients_list;            	
-                std::fstream file;
-                file.open("online_clinets.txt", std::ios::in | std::ios::out | std::ios::trunc);
-                if (file.is_open()) {
-                    if (response.find("There is no online user") == std::string::npos && response.size() > 35) {
-                        response = response.substr(33);
-                        file << response;
-                        file.seekg(0);
-                        std::string line;
-                        int end_of_username = 0;
-                        std::string find_username;
-                        if (!clients_list.empty()) {
-                            clients_list.clear();
-                        }
-                        while (std::getline(file, line)) {
-                            end_of_username = line.find(" ");
-                            if (end_of_username != std::string::npos) {
-                                find_username = line.substr(0, end_of_username);
-                                if (line.find("no free") != std::string::npos) {
-                                    clients_list[find_username] = false;
-                                } else {
-                                    clients_list[find_username] = true;
-                                }
-                            }
-                        }
+                std::thread([username, server_socket, response, socket, &io_context, acception]() {
+                    std::string text;
+                    if (response.find("ip not found") == 0) {
+                        text = "Username not found.";
+                        acception->store(false);
                     } else {
-                        clients_list.clear();
-                    }          
-                    file.close();
-                } else {
-                    std::cerr << "Error during open file" << std::endl;
-                }
-                std::string target_username_or_wait = write_username(clients_list);
+                    	acception->store(false);
+                        text = "Online clients:\n";
+                    }
 
-                if (target_username_or_wait == "wait") {
-                    std::cout << "To return to the previous menu you can restart the program\nSwitching to standby mode.." << std::endl;
-                    notify_server_status(server_socket, "waiting", username);
-                } else {
-                	std::cout << "Wait for the user to accept the connection.." << std::endl;
-                    std::string connect_message = "connect " + target_username_or_wait;
-                    boost::asio::async_write(*socket, boost::asio::buffer(connect_message), handle_write);
-
-                    auto buffer = std::make_shared<std::array<char, 1024>>();
-                    socket->async_read_some(boost::asio::buffer(*buffer), [socket, server_socket, buffer, &io_context, username](const boost::system::error_code& error, std::size_t length) {
-                        if (!error) {
-                            std::string response(buffer->data(), length);
-                            if (response.find("IP: ") == 0) {
-                                std::string client_ip = response.substr(4);
-                                std::cout << "IP address of the selected client: " << client_ip << std::endl;
-                                connect_to_client(client_ip, io_context, server_socket, username);
-                            } else {
-                                std::cerr << "Unexpected response: " << response << std::endl;
-                            }
+                    std::cout << text << response << std::endl;
+                    
+                    std::cout << "Enter the username of the client you want to connect to (or 'wait' to wait for incoming connections): ";
+                    std::string target_username;
+                    std::getline(std::cin, target_username);
+                  
+                    if (acception->load()) { 
+                        std::cout << "Accept or reject (accept/reject): ";
+                    }
+                     
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    if (!acception->load()) { 
+                        if (target_username == "wait") {
+                            std::cout << "To return to the previous menu you can restart the program\nSwitching to standby mode.." << std::endl;
+                            notify_server_status(server_socket, "waiting", username);
                         } else {
-                            std::cerr << "Error during read: " << error.message() << std::endl;
+                            std::cout << "Wait for the user to accept the connection.." << std::endl;
+                            std::string connect_message = "connect " + target_username;
+                            boost::asio::async_write(*socket, boost::asio::buffer(connect_message), handle_write);
+
+                            auto buffer = std::make_shared<std::array<char, 1024>>();
+                            socket->async_read_some(boost::asio::buffer(*buffer), 
+                            [socket, server_socket, buffer, response, &io_context, username]
+                            (const boost::system::error_code& error, std::size_t length) {
+                                if (!error) {
+                                    std::string response(buffer->data(), length);
+                                    if (response.find("IP: ") == 0) {
+                                        std::string client_ip = response.substr(4);
+                                        std::cout << "IP address of the selected client: " << client_ip << std::endl;
+                                        connect_to_client(client_ip, io_context, server_socket, username);
+                                    } else if (response.find("reject") == 0) {
+                                        std::cout << "Connection rejected." << std::endl;
+                                        notify_server_status(server_socket, "free", username);
+                                    } else {
+                                        std::cerr << "Unexpected response: " << response << std::endl;
+                                    }
+                                } else {
+                                    std::cerr << "Error during read: " << error.message() << std::endl;
+                                }
+                            });
                         }
-                    });
-                }
+                    }
+                }).detach();
             }
 
-            handle_read(socket, server_socket, io_context, username);
+            handle_read(socket, server_socket, io_context, username, acception);
         } else {
             std::cerr << "Error during read: " << error.message() << std::endl;
         }
     });
 }
+
+
+
 
 void parse_file_info(const std::string& input, std::string& filename, std::streamsize& file_size) {
  
@@ -413,6 +394,9 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     }
 }
 
+
+
+
 void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username) {
     auto new_socket = std::make_shared<tcp::socket>(io_context);
     acceptor->async_accept(*new_socket, [new_socket, acceptor, &io_context, server_socket, username](const boost::system::error_code& error) {
@@ -473,13 +457,18 @@ int main(int argc, char* argv[]) {
                     std::thread accept_thread(accept_connections, acceptor, std::ref(io_context), server_socket, username);
                     accept_thread.detach();
 					
-					std::thread handle_thread(handle_read, server_socket, server_socket, std::ref(io_context), username);
-                    handle_thread.detach();
-                    
+					auto acception_ptr = std::make_shared<std::atomic<bool>>(false);
+
+					std::thread handle_thread([server_socket, &io_context, username, acception_ptr]() {
+    				handle_read(server_socket, server_socket, io_context, username, acception_ptr);
+					});
+					handle_thread.detach();
+
+
 
                     // Run io_context in a loop to check for pending async operations
                     while (true) {
-                        io_context.poll();
+                        io_context.run();
                         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Adjust sleep duration as needed
                     }
                 });
