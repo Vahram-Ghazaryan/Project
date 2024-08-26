@@ -59,7 +59,14 @@ void print_message(const std::string& sender, const std::string& message, bool i
     const std::string user_color = "\033[34m";  // Blue
     const std::string other_color = "\033[32m"; // Green
     const std::string reset_color = "\033[0m";  // Reset to default
-
+    std::string is_emoji = replace_emojis(message);
+    if (is_emoji != message) {
+        std::cout << "\033[A" << replace_emojis(message);
+        for (int i = 0; i < is_emoji.size(); ++i) {
+            std::cout << " ";
+        }
+        std::cout << std::endl;
+    }
     if (is_current_user) {
         std::cout << user_color << std::setw(55) << std::left << time_str << reset_color << std::endl;
     } else {
@@ -207,30 +214,30 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                      
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     if (!acception->load()) { 
-                            std::cout << "Wait for the user to accept the connection.." << std::endl;
-                            std::string connect_message = "connect " + target_username;
-                            boost::asio::async_write(*socket, boost::asio::buffer(connect_message), handle_write);
+                        std::cout << "Wait for the user to accept the connection.." << std::endl;
+                        std::string connect_message = "connect " + target_username;
+                        boost::asio::async_write(*socket, boost::asio::buffer(connect_message), handle_write);
 
-                            auto buffer = std::make_shared<std::array<char, 1024>>();
-                            socket->async_read_some(boost::asio::buffer(*buffer), 
-                            [socket, server_socket, buffer, response, &io_context, username]
-                            (const boost::system::error_code& error, std::size_t length) {
-                                if (!error) {
-                                    std::string response(buffer->data(), length);
-                                    if (response.find("IP: ") == 0) {
-                                        std::string client_ip = response.substr(4);
-                                        std::cout << "IP address of the selected client: " << client_ip << std::endl;
-                                        connect_to_client(client_ip, io_context, server_socket, username);
-                                    } else if (response.find("reject") == 0) {
-                                        std::cout << "Connection rejected." << std::endl;
-                                        notify_server_status(server_socket, "free", username);
-                                    } else {
-                                        std::cerr << "Unexpected response: " << response << std::endl;
-                                    }
+                        auto buffer = std::make_shared<std::array<char, 1024>>();
+                        socket->async_read_some(boost::asio::buffer(*buffer), 
+                        [socket, server_socket, buffer, response, &io_context, username]
+                        (const boost::system::error_code& error, std::size_t length) {
+                            if (!error) {
+                                std::string response(buffer->data(), length);
+                                if (response.find("IP: ") == 0) {
+                                    std::string client_ip = response.substr(4);
+                                    std::cout << "IP address of the selected client: " << client_ip << std::endl;
+                                    connect_to_client(client_ip, io_context, server_socket, username);
+                                } else if (response.find("reject") == 0) {
+                                    std::cout << "Connection rejected." << std::endl;
+                                    notify_server_status(server_socket, "free", username);
                                 } else {
-                                    std::cerr << "Error during read: " << error.message() << std::endl;
+                                    std::cerr << "Unexpected response: " << response << std::endl;
                                 }
-                            });
+                            } else {
+                                std::cerr << "Error during read: " << error.message() << std::endl;
+                            }
+                        });
                     }
                 }).detach();
             }
