@@ -189,7 +189,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                 } else {
                     std::cerr << "Error during open file" << std::endl;
                 }
-                    std::cout << "Enter the username of the client you want to connect to (or 'wait' to wait for incoming connections): ";
+                    std::cout << "Enter the username of the client you want to connect to: ";
                     std::string target_username;
                     std::getline(std::cin, target_username);
                     while (clients_list.find(target_username) == clients_list.end() || clients_list[target_username] == false) {
