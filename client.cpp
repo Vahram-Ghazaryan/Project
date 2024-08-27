@@ -122,7 +122,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
             if (response.find("request ", 0) == 0) {
                 
                 std::string requester = response.substr(8);
-                std::cout << "\nConnection request from: " << requester << " Press ENTER to continue." << std::endl;
+                std::cout << "\nConnection request from: " << requester << " Press ENTER to continue.";
                 acception->store(true);
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 std::string reply;
@@ -205,9 +205,9 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                             break;
                         }
                         if (clients_list.find(target_username) == clients_list.end()) { 
-                            std::cerr << "There is no user with that name!!! Input again\t";
+                            std::cerr << "There is no user with that name! Input again\t";
                         } else {
-                            std::cerr << "The user is no free!!! Input other username\t";
+                            std::cerr << "The user is no free! Input other username\t";
                         }
                             std::getline(std::cin, target_username);
                     }                  
@@ -217,7 +217,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                         std::cout << "Wait for the user to accept the connection.." << std::endl;
                         std::string connect_message = "connect " + target_username;
                         boost::asio::async_write(*socket, boost::asio::buffer(connect_message), handle_write);
-
+						
                         auto buffer = std::make_shared<std::array<char, 1024>>();
                         socket->async_read_some(boost::asio::buffer(*buffer), 
                         [socket, server_socket, buffer, response, &io_context, username]
@@ -279,7 +279,7 @@ std::string extract_filename(const std::string& file_path) {
 }
 
 void send_file(const std::string& file_path, boost::asio::ip::tcp::socket& socket) {
-  	std::thread([&socket, file_path]() {
+  	std::thread([&socket, file_path]() {	
         try {
             std::ifstream file(file_path, std::ios::binary | std::ios::ate);
             if (!file) {
@@ -287,15 +287,7 @@ void send_file(const std::string& file_path, boost::asio::ip::tcp::socket& socke
                 return;
             }
 		file.seekg(0, std::ios::beg);
-
-            std::vector<char> confirmation(128); 
-            size_t length = socket.read_some(boost::asio::buffer(confirmation));
-            std::string confirmation_str(confirmation.data(), length);
-            if (confirmation_str.find("OK") != 0) {
-                std::cerr << "Failed to receive confirmation: " << confirmation_str << std::endl;
-                return;
-            }
-
+            std::this_thread::sleep_for(std::chrono::milliseconds(500)); 
             char buffer[1024];
             while (file.read(buffer, sizeof(buffer))) {
                 boost::asio::write(socket, boost::asio::buffer(buffer, file.gcount()));
@@ -310,7 +302,7 @@ void send_file(const std::string& file_path, boost::asio::ip::tcp::socket& socke
         } catch (const std::exception& e) {
             std::cerr << "Exception in send_file: " << e.what() << '\n';
         }
-    }).detach();
+    }).join();
     
 }
 
@@ -334,9 +326,6 @@ void receive_file(boost::asio::ip::tcp::socket& socket, std::string input, std::
                 return;
             }
 
-            
-            boost::asio::write(socket, boost::asio::buffer("OK"));
-
             char buffer[1024];
             std::streamsize total_bytes_received = 0;
             while (total_bytes_received < file_size) {
@@ -352,7 +341,7 @@ void receive_file(boost::asio::ip::tcp::socket& socket, std::string input, std::
             receive = false;
 
         }
-    }).detach();
+    }).join();
 }
 
 void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp::socket> server_socket, const std::string& username) {
@@ -421,16 +410,16 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         	std::ifstream file(path, std::ios::binary | std::ios::ate);
             if (!file) {
                 std::cerr << "Failed to open file.\n";
-                return;
+                
+            } else {
+            	std::streamsize file_size = file.tellg();
+            	file.seekg(0, std::ios::beg);
+				file.close();
+            	std::string file_size_str = std::to_string(file_size);
+        		boost::asio::async_write(*client_socket, boost::asio::buffer("/file " + path + ":" + file_size_str), handle_write);
+            	send_file(path, *client_socket);
+            	client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             }
-            std::streamsize file_size = file.tellg();
-            file.seekg(0, std::ios::beg);
-			file.close();
-            std::string file_size_str = std::to_string(file_size);
-            
-        	boost::asio::async_write(*client_socket, boost::asio::buffer("/file " + path + ":" + file_size_str), handle_write);
-            send_file(path, *client_socket);
-            client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
         } else if (!stop_chatting && message != "") {
             std::string full_message = username + ": " + replace_emojis(message);
             boost::asio::async_write(*client_socket, boost::asio::buffer(full_message), handle_write);
@@ -438,7 +427,6 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         }
     }
 }
-
 
 
 
