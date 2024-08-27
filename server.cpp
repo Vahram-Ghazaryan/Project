@@ -10,6 +10,8 @@
 #include <chrono>
 #include <thread>
 
+#define DEFAULT_PORT 12345
+
 using boost::asio::ip::tcp;
 
 std::mutex mutex;
@@ -102,7 +104,7 @@ void change_status(const std::shared_ptr<tcp::socket> socket, const std::string 
         free_clients[username] = false;
         changed_line += " online no free\n";
     } else if (change == "free" ) {
-        free_clients[username] = truncate64;
+ //       free_clients[username] = true;
         changed_line += " online free\n"; 
     } else if (change == "offline") {
         changed_line = "";
@@ -212,6 +214,16 @@ void send_answer_of_connection(std::string& received_data, const std::unordered_
 
 void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std::shared_ptr<std::string> username_for_other_scope) {
     static bool open_file_first_time = true;
+        if (open_file_first_time) {
+            std::lock_guard<std::mutex> lock(mutex);
+            std::ofstream file("clients_info.txt");
+            if((!file.is_open())) {
+                    std::cerr << "Unable to open file for write\n";
+            }
+            file << "";
+            file.close();
+            open_file_first_time = false;
+        }
     auto buffer = std::make_shared<std::array<char, 1024>>();
     std::string client_ip = socket -> remote_endpoint().address().to_string();                                                                                                                                                     
     static std::unordered_map<std::string, std::string> client_username_ip;
@@ -242,15 +254,6 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
             *username_for_other_scope = username;
             send_list(socket, username, client_username_ip);
             std::lock_guard<std::mutex> lock(mutex);
-            if (open_file_first_time) {
-                std::ofstream file("clients_info.txt");
-                if((!file.is_open())) {
-                    std::cerr << "Unable to open file for write" << std::endl;
-                }
-                file << "";
-                file.close();
-                open_file_first_time = false;
-            }
             std::ofstream file("clients_info.txt", std::ios::app);
             client_ip_sockets[client_ip] = socket;
             client_username_ip[username] = client_ip;
@@ -322,16 +325,83 @@ void start_accept(boost::asio::io_context& io_context, tcp::acceptor& acceptor) 
         start_accept(io_context, acceptor);
     });
 }
+int server_port(bool is_same_port = false) {
+    std::ifstream file("server.conf");
+    if (file.good()) {
+    std::string line;
+        if (std::getline(file, line)) {
+            int find_server_port = line.find("server port ");
+            if (find_server_port != std::string::npos) {
+                line = line.substr(12);
+                find_server_port = line.find(" ");
+                if (find_server_port != std::string::npos) {
+                    line = line.substr(0, find_server_port);
+                    int port = std::atoi(line.data());
+                    if (port && port > 1023 && port < 65535) {
+                        return port;
+                    }
+                }                        
+            }             
+        }
+    }
+    if (!is_same_port) {
+        std::cerr << "\"server.conf\" file problem, used " << DEFAULT_PORT << " port\n";
+        std::cerr << "Please write server port using --change_port\n";
+        return DEFAULT_PORT;
+    }
+    return 0;
+}
+
+static void change_port(int new_port, int& port) {
+    if (new_port && new_port > 1023 && new_port < 65535) {
+        if (new_port == server_port(true)) {
+            std::cerr << "it is the port written in the same \"server.conf\" file\n";
+            return;
+        }
+        port = new_port;
+        std::ofstream file("server.conf");
+        file << "server port " << port << " ";
+        std::cout << "Server port changed" << std::endl;
+    } else {
+        std::cerr << "Wrong port\n";
+    } 
+}
+
+static void print_help(std::string help) {
+    std::cout << "help_message" << std::endl;
+}
+
+static void cmd_parse(const int argc, const char* argv[], int& port) {
+    for(int i = 1; i < argc; i++) {
+        std::string param_name = argv[i];
+
+        if(param_name == "-h" || param_name == "--help") {
+            print_help(argv[0]);
+            continue;
+        }
+        
+        if (param_name == "--change_port") {
+            if (i + 1 == argc ) {
+                std::cerr << "Usage: --change_port <port>\n";
+                return;
+            }
+            change_port(std::atoi(argv[i + 1]), port);
+            ++i;
+        }
+    }
+}
 
 int main(int argc, char* argv[]) {
     try {
-        if(argc != 2) {
-            std::cerr << "Usage: server <port>" << std::endl;
-            return 1;
+    int port = 0;    
+        if(argc > 1) {
+            cmd_parse(argc, const_cast<const char**> (argv), port);
+            return 0;
         }
+    port = server_port();
 	std::cout << "Server started" << std::endl;
     boost::asio::io_context io_context;
-    tcp::acceptor acceptor(io_context, tcp::endpoint(tcp::v4(), std::atoi(argv[1])));
+    tcp::acceptor acceptor(io_context, tcp::endpoint(tcp::v4(), port));
     start_accept(io_context, acceptor);
 
     io_context.run();

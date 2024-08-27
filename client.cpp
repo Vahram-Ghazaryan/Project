@@ -76,7 +76,7 @@ void print_message(const std::string& sender, const std::string& message, bool i
 
 void handle_write(const boost::system::error_code& error, std::size_t) {
     if (error) {
-        std::cerr << "Error during write: " << error.message() << std::endl;
+        std::cerr << "Error during write: " << error.message() << "\n";
     }
 }
 
@@ -89,7 +89,7 @@ void request_list(std::shared_ptr<tcp::socket> server_socket, const std::string&
     std::string request = "list " + username;
     boost::asio::async_write(*server_socket, boost::asio::buffer(request), [](const boost::system::error_code& error, std::size_t) {
         if (error) {
-            std::cerr << "Error during list request: " << error.message() << std::endl;
+            std::cerr << "Error during list request: " << error.message() << "\n";
         }
     });
 
@@ -99,7 +99,7 @@ void request_list(std::shared_ptr<tcp::socket> server_socket, const std::string&
             std::string response(buffer->data(), length);
             std::cout << "Online clients:\n" << response << std::endl;
         } else {
-            std::cerr << "Error during list read: " << error.message() << std::endl;
+            std::cerr << "Error during list read: " << error.message() << "\n";
         }
     });
 }
@@ -129,7 +129,11 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                 std::getline(std::cin, reply);
                 while (!(reply == "accept" || reply == "reject")) {
                     std::cerr << "Wrong command!!! Input again\t";
-                    std::getline(std::cin, reply);                    
+                   // std::getline(std::cin, reply);                    
+                    if (acception -> load()) {
+                        break;
+                    }
+                    std::getline(std::cin, reply); 
                 }
 
                 if (reply == "accept") {
@@ -194,7 +198,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                     }          
                     file.close();
                 } else {
-                    std::cerr << "Error during open file" << std::endl;
+                    std::cerr << "Error during open file\n";
                 }
                     std::cout << "Enter the username of the client you want to connect to: ";
                     std::string target_username;
@@ -232,10 +236,10 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                                     std::cout << "Connection rejected." << std::endl;
                                     notify_server_status(server_socket, "free", username);
                                 } else {
-                                    std::cerr << "Unexpected response: " << response << std::endl;
+                                    std::cerr << "Unexpected response: " << response << "\n";
                                 }
                             } else {
-                                std::cerr << "Error during read: " << error.message() << std::endl;
+                                std::cerr << "Error during read: " << error.message() << "\n";
                             }
                         });
                     }
@@ -244,7 +248,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
 
             handle_read(socket, server_socket, io_context, username, acception);
         } else {
-            std::cerr << "Error during read: " << error.message() << std::endl;
+            std::cerr << "Error during read: " << error.message() << "\n";
         }
     });
 }
@@ -265,12 +269,12 @@ void parse_file_info(const std::string& input, std::string& filename, std::strea
         try {
             file_size = std::stoll(size_str); 
         } catch (const std::invalid_argument&) {
-            std::cerr << "Invalid size value: " << size_str << std::endl;
+            std::cerr << "Invalid size value: " << size_str << "\n";
         } catch (const std::out_of_range&) {
-            std::cerr << "Size value out of range: " << size_str << std::endl;
+            std::cerr << "Size value out of range: " << size_str << "\n";
         }
     } else {
-        std::cerr << "Invalid input format." << std::endl;
+        std::cerr << "Invalid input format.\n";
     }
 }
 
@@ -439,7 +443,7 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
             std::thread chat_thread(start_chat, new_socket, server_socket, username);
             chat_thread.detach();
         } else {
-            std::cerr << "Error during accept: " << error.message() << std::endl;
+            std::cerr << "Error during accept: " << error.message() << "\n";
         }
 
         accept_connections(acceptor, io_context, server_socket, username);
@@ -458,7 +462,7 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
             std::thread chat_thread(start_chat, client_socket, server_socket, username);
             chat_thread.detach();
         } else {
-            std::cerr << "Error during client connection: " << error.message() << std::endl;
+            std::cerr << "Error during client connection: " << error.message() << "\n";
         }
     });
 }
@@ -466,7 +470,7 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
 int main(int argc, char* argv[]) {
     try {
         if (argc != 4) {
-            std::cerr << "Usage: client <host> <port> <username>" << std::endl;
+            std::cerr << "Usage: client <host> <port> <username>\n";
             return 1;
         }
 
@@ -506,13 +510,13 @@ int main(int argc, char* argv[]) {
                     }
                 });
             } else {
-                std::cerr << "Error during connect: " << error.message() << std::endl;
+                std::cerr << "Error during connect: " << error.message() << "\n";
             }
         });
 
         io_context.run();
     } catch (std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
+        std::cerr << "Exception: " << e.what() << "\n";
     }
 
     return 0;
