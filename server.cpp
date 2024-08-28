@@ -79,7 +79,6 @@ void change_status(const std::shared_ptr<tcp::socket> socket, const std::string 
         std::cerr << "Unable to open file for change" << std::endl;
         return;
     }
-    std::lock_guard<std::mutex> lock(mutex);
     std::string line;
     std::string changed_line;
     int line_number = 0;
@@ -104,26 +103,29 @@ void change_status(const std::shared_ptr<tcp::socket> socket, const std::string 
         free_clients[username] = false;
         changed_line += " online no free\n";
     } else if (change == "free" ) {
- //       free_clients[username] = true;
+        free_clients[username] = true;
         changed_line += " online free\n"; 
     } else if (change == "offline") {
         changed_line = "";
         free_clients[username] = false;  
     }
-    std::ofstream file_for_change("clients_info.txt");
-    for(int i = 0; i < lines.size(); ++i) {
-        if (i == target_line - 1) {
-            file_for_change << changed_line;
-            continue;
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        std::ofstream file_for_change("clients_info.txt");
+        for(int i = 0; i < lines.size(); ++i) {
+            if (i == target_line - 1) {
+                file_for_change << changed_line;
+                continue;
+            }
+            file_for_change << lines[i] << std::endl;
         }
-        file_for_change << lines[i] << std::endl;
+        file_for_change.close();
     }
-    file_for_change.close();
-    if (change == "free") {
+/*   if (change == "free") {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         changed_list[username] = false;
         send_list(socket, username, client_username_ip);
-    }
+    }*/
     for (auto& element: changed_list) {
         if (element.first == username) {
             continue;
@@ -258,7 +260,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
             client_ip_sockets[client_ip] = socket;
             client_username_ip[username] = client_ip;
             changed_list[username] = false;
-            free_clients[username] = false;
+            free_clients[username] = true;
 			if (!file.is_open()) {
                 std::cerr << "Unable to open file for write" << std::endl;
                 handle_read(socket, false, username_for_other_scope);

@@ -140,7 +140,6 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                     std::string response_message = "accept from " + username + " for " + requester;
                     boost::asio::async_write(*socket, boost::asio::buffer(response_message), handle_write);
                     std::cout << "Connection accepted. You can now start chatting." << std::endl;
-                    notify_server_status(server_socket, "no free", username);
                 } else if (reply == "reject") {
                 	acception->store(false);
                     std::string response_message = "reject from " + username + " for " + requester;
@@ -169,7 +168,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
 
                 std::cout << text << response << std::endl;           	
                 std::fstream file;
-                std::unordered_map<std::string, bool> clients_list;
+                static std::unordered_map<std::string, bool> clients_list;
                 file.open("online_clinets.txt", std::ios::in | std::ios::out | std::ios::trunc);
                 if (file.is_open()) {
                     if (response.find("There is no online user") == std::string::npos && response.size() > 35) {
