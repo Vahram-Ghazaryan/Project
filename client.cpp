@@ -128,12 +128,12 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                 std::string reply;
                 std::getline(std::cin, reply);
                 while (!(reply == "accept" || reply == "reject")) {
-                    std::cerr << "Wrong command!!! Input again\t";
-                   // std::getline(std::cin, reply);                    
+                    std::cerr << "Wrong command! Input again:\t";
+                    std::getline(std::cin, reply);                    
                     if (acception -> load()) {
                         break;
                     }
-                    std::getline(std::cin, reply); 
+                    
                 }
 
                 if (reply == "accept") {
@@ -164,7 +164,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                         acception->store(false);
                     } else {
                     	acception->store(false);
-                        text = "Online clients:\n";
+                        text = "\nOnline clients:\n";
                     }
 
                 std::cout << text << response << std::endl;           	
@@ -208,10 +208,10 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                             std::cout << "Accept or reject (accept/reject): ";
                             break;
                         }
-                        if (clients_list.find(target_username) == clients_list.end()) { 
-                            std::cerr << "There is no user with that name! Input again\t";
+                        else if (clients_list.find(target_username) == clients_list.end()) { 
+                            std::cerr << "There is no user with that name! Input again:\t";
                         } else {
-                            std::cerr << "The user is no free! Input other username\t";
+                            std::cerr << "The user is no free! Input other username:\t";
                         }
                             std::getline(std::cin, target_username);
                     }                  
@@ -236,7 +236,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                                     std::cout << "Connection rejected." << std::endl;
                                     notify_server_status(server_socket, "free", username);
                                 } else {
-                                    std::cerr << "Unexpected response: " << response << "\n";
+                                    notify_server_status(server_socket, "free", username);
                                 }
                             } else {
                                 std::cerr << "Error during read: " << error.message() << "\n";
