@@ -38,7 +38,7 @@ void send_list(const std::shared_ptr<tcp::socket> socket,const std::string usern
                 if (line.substr(end_of_ip_address + 1, username.size()) == username) {
                     continue;
                 }
-                response += line.substr(end_of_ip_address + 1) + "\n";
+                response += line + "\n";
             }        
         }
         file.close();
