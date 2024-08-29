@@ -14,6 +14,7 @@
 #include <functional>
 #include <unordered_map>
 #include <cstdlib>
+#include <future>
 
 namespace fs = std::filesystem;
 using boost::asio::ip::tcp;
@@ -284,76 +285,120 @@ std::string extract_filename(const std::string& file_path) {
     return file_path.substr(file_path.find_last_of("/\\") + 1);
 }
 
-void send_file(const std::string& file_path, boost::asio::ip::tcp::socket& socket) {
-  	std::thread([&socket, file_path]() {	
-        try {
-            std::ifstream file(file_path, std::ios::binary | std::ios::ate);
-            if (!file) {
-                std::cerr << "Failed to open file.\n";
-                return;
-            }
-		file.seekg(0, std::ios::beg);
-            std::this_thread::sleep_for(std::chrono::milliseconds(500)); 
-            char buffer[1024];
-            while (file.read(buffer, sizeof(buffer))) {
-                boost::asio::write(socket, boost::asio::buffer(buffer, file.gcount()));
-            }
-            if (file.gcount() > 0) {
-                boost::asio::write(socket, boost::asio::buffer(buffer, file.gcount()));
-                
-            }
-            std::cout << "File sent successfully." << std::endl;
-
-            file.close(); 
-        } catch (const std::exception& e) {
-            std::cerr << "Exception in send_file: " << e.what() << '\n';
+void send_file_part(boost::asio::ip::tcp::socket& socket, const std::string& file_path, std::streamsize offset, std::streamsize part_size) {
+    try {
+        std::ifstream file(file_path, std::ios::binary);
+        if (!file) {
+            std::cerr << "Failed to open file part.\n";
+            return;
         }
-    }).join();
-    
+
+        file.seekg(offset);
+        const std::size_t buffer_size = 4096; 
+        char buffer[buffer_size];
+
+        std::streamsize bytes_to_send = part_size;
+        while (bytes_to_send > 0) {
+            std::streamsize chunk_size = std::min(bytes_to_send, static_cast<std::streamsize>(buffer_size));
+            file.read(buffer, chunk_size);
+            boost::asio::write(socket, boost::asio::buffer(buffer, file.gcount()));
+            bytes_to_send -= file.gcount();
+        }
+
+        file.close();
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in send_file_part: " << e.what() << '\n';
+    }
 }
 
-void receive_file(boost::asio::ip::tcp::socket& socket, std::string input, std::atomic<bool>& receive) {
-   std::thread([&socket, input, &receive]() {
-        try {
-         	
-            std::string filename;         
-            std::streamsize file_size;
-            parse_file_info(" " + input, filename, file_size);
-            
-            fs::path dir = "received_files";
-    		if (!fs::exists(dir)) {
-        		fs::create_directory(dir);
-    		}
-            
-            std::ofstream file(std::string(dir/filename), std::ios::binary);
-            if (!file) {
-                std::cerr << "Failed to create file.\n";
-                receive = false;
-                return;
-            }
 
-            char buffer[1024];
-            std::streamsize total_bytes_received = 0;
-            while (total_bytes_received < file_size) {
-                size_t bytes_received = socket.read_some(boost::asio::buffer(buffer));
-                file.write(buffer, bytes_received);
-                total_bytes_received += bytes_received;
-            }
-            std::cout << "File received successfully.\nThe file is saved in the received_files directory" << std::endl;
-			receive = false;
-            file.close(); 
-        } catch (const std::exception& e) {
-            std::cerr << "Exception in receive_file: " << e.what() << '\n';
-            receive = false;
-
+void send_file_multithreaded(const std::string& file_path, boost::asio::ip::tcp::socket& socket) {
+    try {
+        std::ifstream file(file_path, std::ios::binary | std::ios::ate);
+        if (!file) {
+            std::cerr << "Failed to open file.\n";
+            return;
         }
-    }).join();
+
+        std::streamsize file_size = file.tellg();
+        const std::size_t num_threads = std::thread::hardware_concurrency();
+        std::streamsize part_size = file_size / num_threads;
+
+        std::vector<std::future<void>> futures;
+
+        for (std::size_t i = 0; i < num_threads; ++i) {
+            std::streamsize offset = i * part_size;
+            std::streamsize current_part_size = (i == num_threads - 1) ? (file_size - offset) : part_size;
+
+            futures.emplace_back(std::async(std::launch::async, send_file_part, std::ref(socket), file_path, offset, current_part_size));
+        }
+
+        for (auto& future : futures) {
+            future.get();
+        }
+
+        std::cout << "File sent successfully using multiple threads." << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in send_file_multithreaded: " << e.what() << '\n';
+    }
+}
+
+void receive_file_part(boost::asio::ip::tcp::socket& socket, std::ofstream& file, std::streamsize offset, std::streamsize part_size) {
+    try {
+        const std::size_t buffer_size = 4096; 
+        char buffer[buffer_size];
+
+        file.seekp(offset);
+        std::streamsize bytes_to_receive = part_size;
+        while (bytes_to_receive > 0) {
+            std::streamsize chunk_size = std::min(bytes_to_receive, static_cast<std::streamsize>(buffer_size));
+            std::streamsize bytes_received = socket.read_some(boost::asio::buffer(buffer, chunk_size));
+            file.write(buffer, bytes_received);
+            bytes_to_receive -= bytes_received;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in receive_file_part: " << e.what() << '\n';
+    }
+}
+
+void receive_file_multithreaded(boost::asio::ip::tcp::socket& socket, const std::string& filename, std::streamsize file_size, std::atomic<bool>& receive) {
+    try {
+        std::ofstream file("received_files/" + filename, std::ios::binary);
+        if (!file) {
+            std::cerr << "Failed to create file.\n";
+            receive = false;
+            return;
+        }
+
+        const std::size_t num_threads = std::thread::hardware_concurrency();
+        std::streamsize part_size = file_size / num_threads;
+
+        std::vector<std::thread> threads;
+
+        for (std::size_t i = 0; i < num_threads; ++i) {
+            std::streamsize offset = i * part_size;
+            std::streamsize current_part_size = (i == num_threads - 1) ? (file_size - offset) : part_size;
+
+            threads.emplace_back(receive_file_part, std::ref(socket), std::ref(file), offset, current_part_size);
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+
+        std::cout << "File received successfully using multiple threads.\n";
+        receive = false;
+        file.close();
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in receive_file_multithreaded: " << e.what() << '\n';
+        receive = false;
+    }
 }
 
 void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp::socket> server_socket, const std::string& username) {
     const std::string user_color = "\033[34m";  // Blue
     const std::string reset_color = "\033[0m";  // Reset to default
-	std::atomic<bool> receive(false);
+    std::atomic<bool> receive(false);
     std::atomic<bool> stop_chatting{false};
     auto buffer = std::make_shared<std::array<char, 1024>>();
 
@@ -368,10 +413,13 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 std::cout << "The other client has disconnected\nPress enter to continue." << std::endl;
                 return;
             } else if (message.find("/file") == 0) {
-                std::string path = message.substr(6); // Extract the filename from the message
-                std::cout << "Receiving file: " << path << std::endl;
+                std::string input = message.substr(6); 
+                std::string filename;
+                std::streamsize file_size;
+                parse_file_info(" " + input, filename, file_size);
+                std::cout << "Receiving file: " << filename << std::endl;
                 receive = true;
-                receive_file(*client_socket, path, receive);
+                receive_file_multithreaded(*client_socket, filename, file_size, receive);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             } else if (!receive) {
                 print_message(username, message, false);
@@ -412,19 +460,18 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             exit(0);
         } else if (message.find("/file") == 0) {
-        	std::string path = message.substr(6);
-        	std::ifstream file(path, std::ios::binary | std::ios::ate);
+            std::string path = message.substr(6);
+            std::ifstream file(path, std::ios::binary | std::ios::ate);
             if (!file) {
                 std::cerr << "Failed to open file.\n";
-                
             } else {
-            	std::streamsize file_size = file.tellg();
-            	file.seekg(0, std::ios::beg);
-				file.close();
-            	std::string file_size_str = std::to_string(file_size);
-        		boost::asio::async_write(*client_socket, boost::asio::buffer("/file " + path + ":" + file_size_str), handle_write);
-            	send_file(path, *client_socket);
-            	client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
+                std::streamsize file_size = file.tellg();
+                file.seekg(0, std::ios::beg);
+                file.close();
+                std::string file_size_str = std::to_string(file_size);
+                boost::asio::async_write(*client_socket, boost::asio::buffer("/file " + path + ":" + file_size_str), handle_write);
+                send_file_multithreaded(path, *client_socket);
+                client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             }
         } else if (!stop_chatting && message != "") {
             std::string full_message = username + ": " + replace_emojis(message);
@@ -433,6 +480,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         }
     }
 }
+
 
 
 
