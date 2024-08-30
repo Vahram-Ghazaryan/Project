@@ -122,7 +122,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
             static std::unordered_map<std::string, std::string> clients_username_ip;
                 std::string response(buffer->data(), length);
 
-//                std::thread([username, server_socket, response, socket, &io_context]() {        	
+        	
                 if (connected_ptr -> load()) {
                    return; 
                 }
@@ -168,7 +168,6 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                 } else {
                     std::cerr << "Error during open file\n";
                 }
-  //          }).detach();
                     std::thread([username, server_socket, response, socket, &io_context, connected_ptr]() { 
                     if (connected_ptr -> load()) {
                         return;
@@ -444,18 +443,17 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
     auto new_socket = std::make_shared<tcp::socket>(io_context);
     acceptor->async_accept(*new_socket, [new_socket, acceptor, &io_context, server_socket, username, connected_ptr](const boost::system::error_code& error) {
         if (!error) {
-        	std::cout << "Use /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
             notify_server_status(server_socket, "no free", username);
             connected_ptr -> store(true);
-            std::thread chat_thread(start_chat, new_socket, server_socket, username, connected_ptr);
-            chat_thread.detach();
-/*            auto buffer = std::make_shared<std::array<char, 1024>>();
-            new_socket -> async_read_some(boost::asio::buffer(*buffer), [buffer, server_socket, username, new_socket] (const boost::system::error_code& error, std::size_t length) {
+            auto buffer = std::make_shared<std::array<char, 1024>>();
+            new_socket -> async_read_some(boost::asio::buffer(*buffer), [buffer, server_socket, username, new_socket, connected_ptr](const boost::system::error_code& error, std::size_t length) {
                 if (!error) {
                     std::string response(buffer -> data());
                     if (response.find("request") != std::string::npos) {
                         connected_ptr -> store(true);
                         std::string reply;
+                        std::cout << "Connection request from " << response.substr(8) << std::endl;
+                        std::cout << "Write [accept] or [reject]\t"; 
                         std::getline(std::cin, reply);
                         while (!(reply == "accept" || reply == "reject")) {
                             std::cerr << "Wrong command! Input again:\t";
@@ -465,7 +463,8 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                         if (reply == "accept") {
                             boost::asio::async_write(*new_socket, boost::asio::buffer(reply), handle_write);
                             std::cout << "Connection accepted. You can now start chatting." << std::endl;
-                            std::thread chat_thread(start_chat, new_socket, server_socket, username);
+                            std::cout << "Use /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
+                            std::thread chat_thread(start_chat, new_socket, server_socket, username, connected_ptr);
                             chat_thread.detach();
                         } else if (reply == "reject") {
                             boost::asio::async_write(*new_socket, boost::asio::buffer(reply), handle_write);
@@ -474,10 +473,10 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                         }
                     }
                 }
-            });*/
+            });
         } else {
             std::cerr << "Error during accept: " << error.message() << "\n";
-          
+            new_socket -> close();
             handle_read(server_socket, server_socket, io_context, username, connected_ptr);
         }
 
@@ -492,19 +491,17 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
 
     boost::asio::async_connect(*client_socket, client_endpoints, [client_socket, server_socket, username, &io_context, connected_ptr](const boost::system::error_code& error, const tcp::endpoint&) {
         if (!error) {
-            std::cout << "Connected to client. You can now start chatting.\nUse /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
             notify_server_status(server_socket, "no free", username);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             connected_ptr -> store(true);
-            std::thread chat_thread(start_chat, client_socket, server_socket, username, connected_ptr);
-            chat_thread.detach();
- /*           boost::asio::async_write(*client_socket, boost::asio::buffer("request " + username), handle_write);
+            boost::asio::async_write(*client_socket, boost::asio::buffer("request " + username), handle_write);
             auto buffer = std::make_shared<std::array<char, 1024>>();	
-    	    client_socket->async_read_some(boost::asio::buffer(*buffer), [buffer, client_socket, server_socket, username] (const boost::system::error_code& error, std::size_t length) {
+    	    client_socket->async_read_some(boost::asio::buffer(*buffer), [buffer, client_socket, server_socket, username, connected_ptr] (const boost::system::error_code& error, std::size_t length) {
                 if (!error) {
                     std::string replay(buffer -> data());
                     if (replay == "accept") {
-                        std::thread chat_thread(start_chat, client_socket, server_socket, username);
+                        std::cout << "Connected to client. You can now start chatting.\nUse /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
+                        std::thread chat_thread(start_chat, client_socket, server_socket, username, connected_ptr);
                         chat_thread.detach();
                     } else if (replay == "reject") {
                         std::cout << "Connection rejected." << std::endl;
@@ -514,9 +511,10 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
                 } else {
                     std::cerr << "Erroor during read from new client: " << error.message() << "\n";
                 }
-            });*/
+            });
         } else {
             std::cerr << "Error during client connection: " << error.message() << "\n";            
+            client_socket -> close();
             handle_read(server_socket, server_socket, io_context, username, connected_ptr);
         }
     });
