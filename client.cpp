@@ -42,6 +42,7 @@ std::string replace_emojis(const std::string& message) {
     }
     return result;
 }
+bool connected = false;
 
 void connect_to_client(const std::string& client_ip, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username);
 
@@ -119,135 +120,83 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
     [socket, server_socket, buffer, &io_context, username, acception]
     (const boost::system::error_code& error, std::size_t length) {
         if (!error) {
-            std::string response(buffer->data(), length);
-
-            if (response.find("request ", 0) == 0) {
-                
-                std::string requester = response.substr(8);
-                std::cout << "\nConnection request from: " << requester << " Press ENTER to continue.";
-                acception->store(true);
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                std::string reply;
-                std::getline(std::cin, reply);
-                while (!(reply == "accept" || reply == "reject")) {
-                    std::cerr << "Wrong command! Input again:\t";
-                    std::getline(std::cin, reply);                    
-                    if (acception -> load()) {
-                        break;
-                    }
-                    
+            static std::unordered_map<std::string, bool> clients_list;
+            static std::unordered_map<std::string, std::string> clients_username_ip;
+                std::string response(buffer->data(), length);
+//                std::thread([username, server_socket, response, socket, &io_context, acception]() {        	
+                if (connected) {
+                   return; 
                 }
-
-                if (reply == "accept") {
-                    std::string response_message = "accept from " + username + " for " + requester;
-                    boost::asio::async_write(*socket, boost::asio::buffer(response_message), handle_write);
-                    std::cout << "Connection accepted. You can now start chatting." << std::endl;
-                } else if (reply == "reject") {
-                	acception->store(false);
-                    std::string response_message = "reject from " + username + " for " + requester;
-                    boost::asio::async_write(*socket, boost::asio::buffer(response_message), handle_write);
-                    std::cout << "Connection rejected." << std::endl;
-                    notify_server_status(server_socket, "free", username);
-                }
-
-            } else if (response == "reject") {
-                std::cout << "Connection request rejected by the other client." << std::endl;
-                notify_server_status(server_socket, "free", username);
-            } else if (response.find("IP: ") == 0) {
-                std::string client_ip = response.substr(4);
-                std::cout << "IP address of the selected client: " << client_ip << std::endl;
-                connect_to_client(client_ip, io_context, server_socket, username);
-            } else { 
-                std::thread([username, server_socket, response, socket, &io_context, acception]() {
-                    std::string text;
-                    if (response.find("ip not found") == 0) {
-                        text = "Username not found.";
-                        acception->store(false);
-                    } else {
-                    	acception->store(false);
-                        text = "\nOnline clients:\n";
-                    }
-
-                std::cout << text << response << std::endl;           	
                 std::fstream file;
-                static std::unordered_map<std::string, bool> clients_list;
+                acception -> store(true);
                 file.open("online_clinets.txt", std::ios::in | std::ios::out | std::ios::trunc);
                 if (file.is_open()) {
                     if (response.find("There is no online user") == std::string::npos && response.size() > 35) {
+                        std::cout << "\n " << response.substr(0, 33);
                         std::string list = response.substr(33);
-                        file << list;
+                        file << list << std::endl;;
                         file.seekg(0);
                         std::string line;
                         int end_of_username = 0;
+                        int end_of_ip_address = 0;
+                        std::string ip_address;
                         std::string find_username;
                         if (!clients_list.empty()) {
                             clients_list.clear();
                         }
                         while (std::getline(file, line)) {
-                            end_of_username = line.find(" ");
-                            if (end_of_username != std::string::npos) {
-                                find_username = line.substr(0, end_of_username);
-                                if (line.find("no free") != std::string::npos) {
-                                    clients_list[find_username] = false;
-                                } else {
-                                    clients_list[find_username] = true;
+                            end_of_ip_address = line.find(" ");
+                            if (end_of_ip_address != std::string::npos) {
+                                ip_address = line.substr(0, end_of_ip_address);
+                                line = line.substr(end_of_ip_address + 1);
+                                end_of_username = line.find(" ");
+                                std::cout << line << std::endl;
+                                if (end_of_username != std::string::npos) {
+                                    find_username = line.substr(0, end_of_username);
+                                    if (line.find("no free") != std::string::npos) {
+                                        clients_list[find_username] = false;
+                                    } else {
+                                        clients_list[find_username] = true;
+                                    }
+                                    clients_username_ip[find_username] = ip_address;
                                 }
                             }
                         }
                     } else {
                         clients_list.clear();
+                        std::cout << "\n" << response << std::endl;
                     }          
                     file.close();
                 } else {
                     std::cerr << "Error during open file\n";
                 }
+  //          }).detach();
+                    std::thread([username, server_socket, response, socket, &io_context, acception]() { 
+                    if (connected) {
+                        return;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     std::cout << "Enter the username of the client(only free) you want to connect to: ";
                     std::string target_username;
                     std::getline(std::cin, target_username);
                     while (clients_list.find(target_username) == clients_list.end() || clients_list[target_username] == false) {
-                        if (acception->load()) { 
-                            std::cout << "Accept or reject (accept/reject): ";
-                            break;
+                        if (connected) {
+                            return;
                         }
-                        else if (clients_list.find(target_username) == clients_list.end()) { 
+                        if (clients_list.find(target_username) == clients_list.end()) { 
                             std::cerr << "There is no user with that name! Input again:\t";
                         } else {
                             std::cerr << "The user is no free! Input other username:\t";
                         }
                             std::getline(std::cin, target_username);
                     }                  
-                     
+                    std::cout << "IP address of the selected client: " << clients_username_ip[target_username] << std::endl;
+                    connect_to_client(clients_username_ip[target_username], io_context, server_socket, username);
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                    if (!acception->load()) { 
-    					std::cout << "Wait for the user to accept the connection.." << std::endl;
-    					std::string connect_message = "connect " + target_username;
-    					boost::asio::async_write(*socket, boost::asio::buffer(connect_message), handle_write);
-
-    					auto buffer = std::make_shared<std::array<char, 1024>>();
-   				
-    				socket->async_read_some(boost::asio::buffer(*buffer), 
-    				[socket, server_socket, buffer, &io_context, username]
-    				(const boost::system::error_code& error, std::size_t length) {
-        				if (!error) {            
-            				std::string response(buffer->data(), length);
-            				if (response.find("IP: ") == 0) {
-                				std::string client_ip = response.substr(4);
-                				std::cout << "IP address of the selected client: " << client_ip << std::endl;
-                				connect_to_client(client_ip, io_context, server_socket, username);
-            				} else if (response.find("reject") == 0) {
-                				std::cout << "Connection rejected." << std::endl;
-                				notify_server_status(server_socket, "free", username);
-            				} else {
-                				notify_server_status(server_socket, "free", username);
-            				}
-        			} else {
-            			std::cerr << "Error during read: " << error.message() << "\n";
-        			}
-    			});
-			}
-
+                      
                 }).detach();
-            }
+                
+            
 
             handle_read(socket, server_socket, io_context, username, acception);
         } else {
@@ -410,6 +359,8 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             if (message.find("/disconnect") == 0) {
                 client_socket->close();
                 stop_chatting = true;
+                connected = false;
+                notify_server_status(server_socket, "free", username);
                 std::cout << "The other client has disconnected\nPress enter to continue." << std::endl;
                 return;
             } else if (message.find("/file") == 0) {
@@ -450,7 +401,9 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             boost::asio::async_write(*client_socket, boost::asio::buffer("/disconnect"), handle_write);
             client_socket->close();
             stop_chatting = true;
+            connected = false;
             notify_server_status(server_socket, "free", username);
+            
             break;
         } else if (message == "/exit") {
             std::cout << "Exiting program." << std::endl;
@@ -490,10 +443,39 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
         if (!error) {
         	std::cout << "Use /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
             notify_server_status(server_socket, "no free", username);
+            connected = true;
             std::thread chat_thread(start_chat, new_socket, server_socket, username);
             chat_thread.detach();
+/*            auto buffer = std::make_shared<std::array<char, 1024>>();
+            new_socket -> async_read_some(boost::asio::buffer(*buffer), [buffer, server_socket, username, new_socket] (const boost::system::error_code& error, std::size_t length) {
+                if (!error) {
+                    std::string response(buffer -> data());
+                    if (response.find("request") != std::string::npos) {
+                        connected = true;
+                        std::string reply;
+                        std::getline(std::cin, reply);
+                        while (!(reply == "accept" || reply == "reject")) {
+                            std::cerr << "Wrong command! Input again:\t";
+                            std::getline(std::cin, reply);
+                        }
+
+                        if (reply == "accept") {
+                            boost::asio::async_write(*new_socket, boost::asio::buffer(reply), handle_write);
+                            std::cout << "Connection accepted. You can now start chatting." << std::endl;
+                            std::thread chat_thread(start_chat, new_socket, server_socket, username);
+                            chat_thread.detach();
+                        } else if (reply == "reject") {
+                            boost::asio::async_write(*new_socket, boost::asio::buffer(reply), handle_write);
+                            std::cout << "Connection rejected." << std::endl;
+                            notify_server_status(server_socket, "free", username);
+                        }
+                    }
+                }
+            });*/
         } else {
             std::cerr << "Error during accept: " << error.message() << "\n";
+            auto acception_ptr = std::make_shared<std::atomic<bool>> (false);
+            handle_read(server_socket, server_socket, io_context, username, acception_ptr);
         }
 
         accept_connections(acceptor, io_context, server_socket, username);
@@ -505,14 +487,35 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
     tcp::resolver resolver(io_context);
     tcp::resolver::results_type client_endpoints = resolver.resolve(client_ip, "12347");
 
-    boost::asio::async_connect(*client_socket, client_endpoints, [client_socket, server_socket, username](const boost::system::error_code& error, const tcp::endpoint&) {
+    boost::asio::async_connect(*client_socket, client_endpoints, [client_socket, server_socket, username, &io_context](const boost::system::error_code& error, const tcp::endpoint&) {
         if (!error) {
             std::cout << "Connected to client. You can now start chatting.\nUse /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
             notify_server_status(server_socket, "no free", username);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            connected =  true;
             std::thread chat_thread(start_chat, client_socket, server_socket, username);
             chat_thread.detach();
+ /*           boost::asio::async_write(*client_socket, boost::asio::buffer("request " + username), handle_write);
+            auto buffer = std::make_shared<std::array<char, 1024>>();	
+    	    client_socket->async_read_some(boost::asio::buffer(*buffer), [buffer, client_socket, server_socket, username] (const boost::system::error_code& error, std::size_t length) {
+                if (!error) {
+                    std::string replay(buffer -> data());
+                    if (replay == "accept") {
+                        std::thread chat_thread(start_chat, client_socket, server_socket, username);
+                        chat_thread.detach();
+                    } else if (replay == "reject") {
+                        std::cout << "Connection rejected." << std::endl;
+                		notify_server_status(server_socket, "free", username);
+                        client_socket -> close();
+                    }
+                } else {
+                    std::cerr << "Erroor during read from new client: " << error.message() << "\n";
+                }
+            });*/
         } else {
             std::cerr << "Error during client connection: " << error.message() << "\n";
+            auto acception_ptr = std::make_shared<std::atomic<bool>> (false);
+            handle_read(server_socket, server_socket, io_context, username, acception_ptr);
         }
     });
 }
