@@ -122,11 +122,16 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
             static std::unordered_map<std::string, bool> clients_list;
             static std::unordered_map<std::string, std::string> clients_username_ip;
             std::string response(buffer->data(), length);
-     	
+            static bool print_walcome = true;
+            
                 if (connected_ptr -> load()) {
                    return; 
                 }
                     system("clear");
+                    if (print_walcome) {
+                        std::cout << "𝕎 𝔼 𝕃 ℂ 𝕆 𝕄 𝔼  𝕋 𝕆  𝕃 𝕀ℕ 𝕌 𝕏  ℂ ℍ 𝔸 𝕋\n";
+                        print_walcome = false;
+                    }
                     if (response.find("There is no online user") == std::string::npos && response.size() > 35) {
                         std::cout << "\n " << response.substr(0, 33);
                         std::string list = response.substr(33);
