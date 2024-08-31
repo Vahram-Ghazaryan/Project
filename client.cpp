@@ -122,19 +122,15 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
             static std::unordered_map<std::string, bool> clients_list;
             static std::unordered_map<std::string, std::string> clients_username_ip;
             std::string response(buffer->data(), length);
-
-//                std::thread([username, server_socket, response, socket, &io_context]() {        	
+     	
                 if (connected_ptr -> load()) {
                    return; 
                 }
-                std::fstream file;
-                file.open("online_clinets.txt", std::ios::in | std::ios::out | std::ios::trunc);
-                if (file.is_open()) {
+                    system("clear");
                     if (response.find("There is no online user") == std::string::npos && response.size() > 35) {
                         std::cout << "\n " << response.substr(0, 33);
                         std::string list = response.substr(33);
-                        file << list << std::endl;;
-                        file.seekg(0);
+                        std::istringstream iss(list);
                         std::string line;
                         int end_of_username = 0;
                         int end_of_ip_address = 0;
@@ -143,7 +139,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                         if (!clients_list.empty()) {
                             clients_list.clear();
                         }
-                        while (std::getline(file, line)) {
+                        while (std::getline(iss, line)) {
                             end_of_ip_address = line.find(" ");
                             if (end_of_ip_address != std::string::npos) {
                                 ip_address = line.substr(0, end_of_ip_address);
@@ -165,13 +161,8 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                         clients_list.clear();
                         std::cout << "\n" << response << std::endl;
                         
-                    }          
-                    file.close();
-                } else {
-                    std::cerr << "Error during open file\n";
-                }
-  //          }).detach();
-  					std::cout << "Enter the username of the client(only free) you want to connect to: ";
+                    }
+  					std::cout << "\nEnter the username of the client(only free) you want to connect to: ";
   					if (getlineThread_ptr -> load()) {
   					
                     std::thread([username, server_socket, response, socket, &io_context, connected_ptr, getlineThread_ptr]() { 
@@ -463,15 +454,17 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
         	std::cout << "Use /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
             notify_server_status(server_socket, "no free", username);
             connected_ptr -> store(true);
-            std::thread chat_thread(start_chat, new_socket, server_socket, username, connected_ptr, getlineThread_ptr);
-            chat_thread.detach();
-/*            auto buffer = std::make_shared<std::array<char, 1024>>();
-            new_socket -> async_read_some(boost::asio::buffer(*buffer), [buffer, server_socket, username, new_socket] (const boost::system::error_code& error, std::size_t length) {
+            auto buffer = std::make_shared<std::array<char, 1024>>();
+            new_socket -> async_read_some(boost::asio::buffer(*buffer), [buffer, server_socket, username, new_socket, connected_ptr, getlineThread_ptr](const boost::system::error_code& error, std::size_t length) {
                 if (!error) {
                     std::string response(buffer -> data());
                     if (response.find("request") != std::string::npos) {
                         connected_ptr -> store(true);
                         std::string reply;
+                        std::cout << "Connection request from " << response.substr(8) << std::endl;
+                        std::cout << "Press Enter to continue(2 time)" <<  std::endl;
+                        std::cin.get();
+                        std::cout << "Write [accept] or [reject]\t"; 
                         std::getline(std::cin, reply);
                         while (!(reply == "accept" || reply == "reject")) {
                             std::cerr << "Wrong command! Input again:\t";
@@ -481,7 +474,8 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                         if (reply == "accept") {
                             boost::asio::async_write(*new_socket, boost::asio::buffer(reply), handle_write);
                             std::cout << "Connection accepted. You can now start chatting." << std::endl;
-                            std::thread chat_thread(start_chat, new_socket, server_socket, username);
+                            std::cout << "Use /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
+                            std::thread chat_thread(start_chat, new_socket, server_socket, username, connected_ptr, getlineThread_ptr);
                             chat_thread.detach();
                         } else if (reply == "reject") {
                             boost::asio::async_write(*new_socket, boost::asio::buffer(reply), handle_write);
@@ -490,7 +484,7 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                         }
                     }
                 }
-            });*/
+            });
         } else {
             std::cerr << "Error during accept: " << error.message() << "\n";
           
@@ -508,20 +502,17 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
 
     boost::asio::async_connect(*client_socket, client_endpoints, [client_socket, server_socket, username, &io_context, connected_ptr, getlineThread_ptr](const boost::system::error_code& error, const tcp::endpoint&) {
         if (!error) {
-            std::cout << "Connected to client. You can now start chatting.\nUse /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
             notify_server_status(server_socket, "no free", username);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             connected_ptr -> store(true);
-            std::thread chat_thread(start_chat, client_socket, server_socket, username, connected_ptr, getlineThread_ptr);
-            chat_thread.detach();
-            return;
- /*           boost::asio::async_write(*client_socket, boost::asio::buffer("request " + username), handle_write);
+            boost::asio::async_write(*client_socket, boost::asio::buffer("request " + username), handle_write);
             auto buffer = std::make_shared<std::array<char, 1024>>();	
-    	    client_socket->async_read_some(boost::asio::buffer(*buffer), [buffer, client_socket, server_socket, username] (const boost::system::error_code& error, std::size_t length) {
+    	    client_socket->async_read_some(boost::asio::buffer(*buffer), [buffer, client_socket, server_socket, username, connected_ptr, getlineThread_ptr] (const boost::system::error_code& error, std::size_t length) {
                 if (!error) {
                     std::string replay(buffer -> data());
                     if (replay == "accept") {
-                        std::thread chat_thread(start_chat, client_socket, server_socket, username);
+                        std::cout << "Connected to client. You can now start chatting.\nUse /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
+                        std::thread chat_thread(start_chat, client_socket, server_socket, username, connected_ptr, getlineThread_ptr);
                         chat_thread.detach();
                     } else if (replay == "reject") {
                         std::cout << "Connection rejected." << std::endl;
@@ -529,9 +520,9 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
                         client_socket -> close();
                     }
                 } else {
-                    std::cerr << "Erroor during read from new client: " << error.message() << "\n";
+                    std::cerr << "Error during read from new client: " << error.message() << "\n";
                 }
-            });*/
+            });
         } else {
             std::cerr << "Error during client connection: " << error.message() << "\n";            
             handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
@@ -558,16 +549,79 @@ std::pair<std::string, std::string> read_config(const std::string& filename) {
 
     return {host, port};
 }
-	
+
+void change_port(int port) {
+    if (port > 1023 && port < 65535) {
+        std::fstream file("chat.conf", std::ios::in | std::ios::out | std::ios::app);
+        std::string line;
+        std::vector<std::string> lines;
+        while(std::getline(file, line)) {
+            if (line.find("port") != std::string::npos) {
+                line = "port " + std::to_string(port);
+                lines.push_back(line);
+                continue;
+            }
+            lines.push_back(line);
+        }
+        file.seekg(0);
+        for (int i = 0; i < lines.size(); ++i) {
+            file << lines[i];
+        }
+        std::cout << "Port changed" << std::endl;
+        file.close();
+    } else {
+        std::cerr << "Wrong port\n";
+    }
+}
+
+static void print_help() {
+    std::cout << "help_message" << std::endl;
+}
+
+static bool cmd_parse(const int argc, const char* argv[], std::string& username) {
+    for(int i = 1; i < argc; i++) {
+        std::string param_name = argv[i];
+
+        if(param_name == "-h" || param_name == "--help") {
+            print_help();
+            continue;
+        }
+        
+        if (param_name == "--change_port") {
+            if (i + 1 == argc ) {
+                std::cerr << "Usage: --change_port <port>\n";
+                return false;
+            }
+            change_port(std::atoi(argv[i + 1]));
+            ++i;
+        }
+        if (param_name == "--username" || param_name == "-u") {
+            if (i + 1 == argc ) {
+                std::cerr << "Usage: --username/-u <username>\n";
+                return false;
+            }
+            username = argv[i + 1];
+            return true;
+        }
+        if (i + 1 == argc) {
+            return false;
+        }
+        std::cerr << "Wrong argument\n";
+        return false;
+    }
+}
 
 int main(int argc, char* argv[]) {	
     try {
-        if (argc != 2) { 
-            std::cerr << "Usage: client <username>\n";
+        std::string username;
+        if (argc > 2) { 
+            if(!cmd_parse(argc, const_cast<const char**> (argv), username)) {
+                return 0;
+            };
+        } else {
+            std::cerr << "Usage: client --username <username> of -u <username>\n";
             return 1;
         }
-
-        std::string username = argv[1];
         auto [host, port] = read_config("chat.conf");
 
         if (host.empty() || port.empty()) {
