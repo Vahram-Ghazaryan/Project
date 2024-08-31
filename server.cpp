@@ -45,6 +45,7 @@ void send_list(const std::shared_ptr<tcp::socket> socket,const std::string usern
     } else {
         response += "There is no online user\n";
     }
+        response += " Enter the username of the client(only free) you want to connect to:";
     boost::asio::async_write(*socket, boost::asio::buffer(response), [socket](const boost::system::error_code& error, std::size_t) {
         if (error) {
             std::cerr << "Error during write: " << error.message() << std::endl;
