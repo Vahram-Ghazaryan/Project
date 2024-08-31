@@ -560,7 +560,54 @@ std::pair<std::string, std::string> read_config(const std::string& filename) {
 
     return {host, port};
 }
+bool is_octet(std::string octet) {
+    if (octet == "0") {
+        return true;
+    }
+    short check_octet = std::atoi(octet.data());
+    if (check_octet && check_octet > 0 && check_octet <256) {
+        return true;
+    }
+    return false;
+}
+void change_host_ip(std::string ip) {
+    std::string octet;
+    int find_octet = 0;
+    std::string ip_for_change = ip;
+    for (int i = 0; i < 3; ++i) {
+        find_octet = ip.find(".");
+        octet = ip.substr(0, find_octet);
+        if (!is_octet(octet)) {
+            std::cerr << "Wrong ip address\n";
+            return;
+        }
+        ip = ip.substr(find_octet + 1);
+    }
+        if (!is_octet(ip)) {
+            std::cerr << "Wrong ip address\n";
+            return;
+        }
+        std::fstream file("chat.conf", std::ios::in);
+        std::string line;
+        std::vector<std::string> lines;
+        while(std::getline(file, line)) {
+            if (line.find("hostIp") != std::string::npos) {
+                line = "hostIp " + ip_for_change;
+                lines.push_back(line);
+                continue;
+            }
+            lines.push_back(line);
+        }
+        file.close();
+        file.open("chat.conf", std::ios::out | std::ios::trunc);
+        for (int i = 0; i < lines.size(); ++i) {
+            file << lines[i] << "\n";
+        }
+        std::cout << "Host ip changed" << std::endl;
+        file.close();
 
+
+}
 void change_port(int port) {
     if (port > 1023 && port < 65535) {
         std::fstream file("chat.conf", std::ios::in);
@@ -606,6 +653,16 @@ static bool cmd_parse(const int argc, const char* argv[], std::string& username)
             }
             change_port(std::atoi(argv[i + 1]));
             ++i;
+            continue;
+        }
+        if (param_name == "--change_host_ip") {
+            if (i + 1 == argc ) {
+                std::cerr << "Usage: --change_host_ip <host_ip>\n";
+                return false;
+            }
+            change_host_ip(argv[i + 1]);
+            ++i;
+            continue;
         }
         if (param_name == "--username" || param_name == "-u") {
             if (i + 1 == argc ) {
@@ -632,7 +689,7 @@ int main(int argc, char* argv[]) {
                 return 0;
             };
         } else {
-            std::cerr << "Usage: client --username <username> of -u <username>\n";
+            std::cerr << "Usage: client --username <username> or -u <username>\n";
             return 1;
         }
         auto [host, port] = read_config("chat.conf");
