@@ -121,9 +121,10 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
             static std::unordered_map<std::string, bool> clients_list;
             static std::unordered_map<std::string, std::string> clients_username_ip;
                 std::string response(buffer->data(), length);
-
+                static bool input = true;
         	
                 if (connected_ptr -> load()) {
+                   input = true;
                    return; 
                 }
                 std::fstream file;
@@ -165,9 +166,15 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                         std::cout << "\n" << response << std::endl;
                     }          
                     file.close();
+                    if (!input) {
+                        
+                        std::cout << "Enter the username of the client(only free) you want to connect to: ";
+                    }
                 } else {
                     std::cerr << "Error during open file\n";
                 }
+                    
+                    if (input) {
                     std::thread([username, server_socket, response, socket, &io_context, connected_ptr]() { 
                     if (connected_ptr -> load()) {
                         return;
@@ -175,7 +182,8 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     std::cout << "Enter the username of the client(only free) you want to connect to: ";
                     std::string target_username;
-                    std::getline(std::cin, target_username);
+                    
+                        std::getline(std::cin, target_username);
                     while (clients_list.find(target_username) == clients_list.end() || clients_list[target_username] == false) {
                         if (connected_ptr -> load()) {
                             return;
@@ -192,6 +200,8 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     return;  
                 }).detach();
+                    input = false;
+                    }
                 
             
 
@@ -380,6 +390,9 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             if (!stop_chatting) {
                 std::cout << "The other client closed the program incorrectly\nPress enter to continue." << std::endl;
                 stop_chatting = true;
+                notify_server_status(server_socket, "free", username);
+                connected_ptr -> store(false);
+                handle_read(server_socket, server_socket, io_context, username, connected_ptr);
                 return;
             }
         }
@@ -453,6 +466,8 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                         connected_ptr -> store(true);
                         std::string reply;
                         std::cout << "Connection request from " << response.substr(8) << std::endl;
+                        std::cout << "Press Enter to continue(2 time)" <<  std::endl;
+                        std::cin.get();
                         std::cout << "Write [accept] or [reject]\t"; 
                         std::getline(std::cin, reply);
                         while (!(reply == "accept" || reply == "reject")) {
