@@ -142,11 +142,17 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                         while (std::getline(iss, line)) {
                             end_of_ip_address = line.find(" ");
                             if (end_of_ip_address != std::string::npos) {
-                                ip_address = line.substr(0, end_of_ip_address);
-                                line = line.substr(end_of_ip_address + 1);
-                                end_of_username = line.find(" ");
-                                std::cout << line << std::endl;
+                                
+                                    ip_address = line.substr(0, end_of_ip_address);
+                                    line = line.substr(end_of_ip_address + 1) + "\n";
+                                    end_of_username = line.find(" ");
+                                
+                                std::cout << line;
+                                
                                 if (end_of_username != std::string::npos) {
+                                    if (line.find("username of") != std::string::npos) {
+                                        continue;
+                                    }
                                     find_username = line.substr(0, end_of_username);
                                     if (line.find("no free") != std::string::npos) {
                                         clients_list[find_username] = false;
@@ -162,7 +168,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                         std::cout << "\n" << response << std::endl;
                         
                     }
-  					std::cout << "\nEnter the username of the client(only free) you want to connect to: ";
+  					
   					if (getlineThread_ptr -> load()) {
   					
                     std::thread([username, server_socket, response, socket, &io_context, connected_ptr, getlineThread_ptr]() { 
@@ -552,7 +558,7 @@ std::pair<std::string, std::string> read_config(const std::string& filename) {
 
 void change_port(int port) {
     if (port > 1023 && port < 65535) {
-        std::fstream file("chat.conf", std::ios::in | std::ios::out | std::ios::app);
+        std::fstream file("chat.conf", std::ios::in);
         std::string line;
         std::vector<std::string> lines;
         while(std::getline(file, line)) {
@@ -563,9 +569,10 @@ void change_port(int port) {
             }
             lines.push_back(line);
         }
-        file.seekg(0);
+        file.close();
+        file.open("chat.conf", std::ios::out | std::ios::trunc);
         for (int i = 0; i < lines.size(); ++i) {
-            file << lines[i];
+            file << lines[i] << "\n";
         }
         std::cout << "Port changed" << std::endl;
         file.close();
@@ -609,6 +616,7 @@ static bool cmd_parse(const int argc, const char* argv[], std::string& username)
         std::cerr << "Wrong argument\n";
         return false;
     }
+    return false;
 }
 
 int main(int argc, char* argv[]) {	
