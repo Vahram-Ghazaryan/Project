@@ -1,0 +1,3 @@
+/home/vahram/project/Project/server/build/CMakeFiles/server.dir
+/home/vahram/project/Project/server/build/CMakeFiles/edit_cache.dir
+/home/vahram/project/Project/server/build/CMakeFiles/rebuild_cache.dir
