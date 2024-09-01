@@ -53,10 +53,10 @@ RM = /usr/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/aram/Desktop/project1/git/Project/client
+CMAKE_SOURCE_DIR = /home/vahram/project/Project/Project/client
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/aram/Desktop/project1/git/Project/client/build
+CMAKE_BINARY_DIR = /home/vahram/project/Project/Project/client/build
 
 # Include any dependencies generated for this target.
 include CMakeFiles/chat_client.dir/depend.make
@@ -72,44 +72,44 @@ include CMakeFiles/chat_client.dir/flags.make
 CMakeFiles/chat_client.dir/src/client.cpp.o: CMakeFiles/chat_client.dir/flags.make
 CMakeFiles/chat_client.dir/src/client.cpp.o: ../src/client.cpp
 CMakeFiles/chat_client.dir/src/client.cpp.o: CMakeFiles/chat_client.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/aram/Desktop/project1/git/Project/client/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/chat_client.dir/src/client.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/chat_client.dir/src/client.cpp.o -MF CMakeFiles/chat_client.dir/src/client.cpp.o.d -o CMakeFiles/chat_client.dir/src/client.cpp.o -c /home/aram/Desktop/project1/git/Project/client/src/client.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/vahram/project/Project/Project/client/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/chat_client.dir/src/client.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/chat_client.dir/src/client.cpp.o -MF CMakeFiles/chat_client.dir/src/client.cpp.o.d -o CMakeFiles/chat_client.dir/src/client.cpp.o -c /home/vahram/project/Project/Project/client/src/client.cpp
 
 CMakeFiles/chat_client.dir/src/client.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/chat_client.dir/src/client.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/aram/Desktop/project1/git/Project/client/src/client.cpp > CMakeFiles/chat_client.dir/src/client.cpp.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/vahram/project/Project/Project/client/src/client.cpp > CMakeFiles/chat_client.dir/src/client.cpp.i
 
 CMakeFiles/chat_client.dir/src/client.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/chat_client.dir/src/client.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/aram/Desktop/project1/git/Project/client/src/client.cpp -o CMakeFiles/chat_client.dir/src/client.cpp.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/vahram/project/Project/Project/client/src/client.cpp -o CMakeFiles/chat_client.dir/src/client.cpp.s
 
 CMakeFiles/chat_client.dir/src/client_utils.cpp.o: CMakeFiles/chat_client.dir/flags.make
 CMakeFiles/chat_client.dir/src/client_utils.cpp.o: ../src/client_utils.cpp
 CMakeFiles/chat_client.dir/src/client_utils.cpp.o: CMakeFiles/chat_client.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/aram/Desktop/project1/git/Project/client/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/chat_client.dir/src/client_utils.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/chat_client.dir/src/client_utils.cpp.o -MF CMakeFiles/chat_client.dir/src/client_utils.cpp.o.d -o CMakeFiles/chat_client.dir/src/client_utils.cpp.o -c /home/aram/Desktop/project1/git/Project/client/src/client_utils.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/vahram/project/Project/Project/client/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/chat_client.dir/src/client_utils.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/chat_client.dir/src/client_utils.cpp.o -MF CMakeFiles/chat_client.dir/src/client_utils.cpp.o.d -o CMakeFiles/chat_client.dir/src/client_utils.cpp.o -c /home/vahram/project/Project/Project/client/src/client_utils.cpp
 
 CMakeFiles/chat_client.dir/src/client_utils.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/chat_client.dir/src/client_utils.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/aram/Desktop/project1/git/Project/client/src/client_utils.cpp > CMakeFiles/chat_client.dir/src/client_utils.cpp.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/vahram/project/Project/Project/client/src/client_utils.cpp > CMakeFiles/chat_client.dir/src/client_utils.cpp.i
 
 CMakeFiles/chat_client.dir/src/client_utils.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/chat_client.dir/src/client_utils.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/aram/Desktop/project1/git/Project/client/src/client_utils.cpp -o CMakeFiles/chat_client.dir/src/client_utils.cpp.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/vahram/project/Project/Project/client/src/client_utils.cpp -o CMakeFiles/chat_client.dir/src/client_utils.cpp.s
 
 CMakeFiles/chat_client.dir/src/main.cpp.o: CMakeFiles/chat_client.dir/flags.make
 CMakeFiles/chat_client.dir/src/main.cpp.o: ../src/main.cpp
 CMakeFiles/chat_client.dir/src/main.cpp.o: CMakeFiles/chat_client.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/aram/Desktop/project1/git/Project/client/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/chat_client.dir/src/main.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/chat_client.dir/src/main.cpp.o -MF CMakeFiles/chat_client.dir/src/main.cpp.o.d -o CMakeFiles/chat_client.dir/src/main.cpp.o -c /home/aram/Desktop/project1/git/Project/client/src/main.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/vahram/project/Project/Project/client/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/chat_client.dir/src/main.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/chat_client.dir/src/main.cpp.o -MF CMakeFiles/chat_client.dir/src/main.cpp.o.d -o CMakeFiles/chat_client.dir/src/main.cpp.o -c /home/vahram/project/Project/Project/client/src/main.cpp
 
 CMakeFiles/chat_client.dir/src/main.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/chat_client.dir/src/main.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/aram/Desktop/project1/git/Project/client/src/main.cpp > CMakeFiles/chat_client.dir/src/main.cpp.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/vahram/project/Project/Project/client/src/main.cpp > CMakeFiles/chat_client.dir/src/main.cpp.i
 
 CMakeFiles/chat_client.dir/src/main.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/chat_client.dir/src/main.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/aram/Desktop/project1/git/Project/client/src/main.cpp -o CMakeFiles/chat_client.dir/src/main.cpp.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/vahram/project/Project/Project/client/src/main.cpp -o CMakeFiles/chat_client.dir/src/main.cpp.s
 
 # Object files for target chat_client
 chat_client_OBJECTS = \
@@ -124,9 +124,8 @@ chat_client: CMakeFiles/chat_client.dir/src/client.cpp.o
 chat_client: CMakeFiles/chat_client.dir/src/client_utils.cpp.o
 chat_client: CMakeFiles/chat_client.dir/src/main.cpp.o
 chat_client: CMakeFiles/chat_client.dir/build.make
-chat_client: /home/aram/Desktop/project1/boost_1_85_0/stage/lib/libboost_system.so
 chat_client: CMakeFiles/chat_client.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/aram/Desktop/project1/git/Project/client/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable chat_client"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/vahram/project/Project/Project/client/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable chat_client"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/chat_client.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
@@ -138,6 +137,6 @@ CMakeFiles/chat_client.dir/clean:
 .PHONY : CMakeFiles/chat_client.dir/clean
 
 CMakeFiles/chat_client.dir/depend:
-	cd /home/aram/Desktop/project1/git/Project/client/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/aram/Desktop/project1/git/Project/client /home/aram/Desktop/project1/git/Project/client /home/aram/Desktop/project1/git/Project/client/build /home/aram/Desktop/project1/git/Project/client/build /home/aram/Desktop/project1/git/Project/client/build/CMakeFiles/chat_client.dir/DependInfo.cmake --color=$(COLOR)
+	cd /home/vahram/project/Project/Project/client/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/vahram/project/Project/Project/client /home/vahram/project/Project/Project/client /home/vahram/project/Project/Project/client/build /home/vahram/project/Project/Project/client/build /home/vahram/project/Project/Project/client/build/CMakeFiles/chat_client.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : CMakeFiles/chat_client.dir/depend
 

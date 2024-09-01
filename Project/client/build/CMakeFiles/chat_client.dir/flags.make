@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/home/aram/Desktop/project1/boost_1_85_0 -I/home/aram/Desktop/project1/git/Project/client/include
+CXX_INCLUDES = -I/home/vahram/project/Project/Project/client/build -I/home/vahram/project/Project/Project/client/include
 
 CXX_FLAGS = 
 

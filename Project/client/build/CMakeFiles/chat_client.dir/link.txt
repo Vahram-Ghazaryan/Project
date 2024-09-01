@@ -1,1 +1,1 @@
-/usr/bin/c++ CMakeFiles/chat_client.dir/src/client.cpp.o CMakeFiles/chat_client.dir/src/client_utils.cpp.o CMakeFiles/chat_client.dir/src/main.cpp.o -o chat_client  -Wl,-rpath,/home/aram/Desktop/project1/boost_1_85_0/stage/lib /home/aram/Desktop/project1/boost_1_85_0/stage/lib/libboost_system.so 
+/usr/bin/c++ CMakeFiles/chat_client.dir/src/client.cpp.o CMakeFiles/chat_client.dir/src/client_utils.cpp.o CMakeFiles/chat_client.dir/src/main.cpp.o -o chat_client 

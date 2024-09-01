@@ -8,9 +8,9 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/aram/Desktop/project1/git/Project/client/src/client.cpp" "CMakeFiles/chat_client.dir/src/client.cpp.o" "gcc" "CMakeFiles/chat_client.dir/src/client.cpp.o.d"
-  "/home/aram/Desktop/project1/git/Project/client/src/client_utils.cpp" "CMakeFiles/chat_client.dir/src/client_utils.cpp.o" "gcc" "CMakeFiles/chat_client.dir/src/client_utils.cpp.o.d"
-  "/home/aram/Desktop/project1/git/Project/client/src/main.cpp" "CMakeFiles/chat_client.dir/src/main.cpp.o" "gcc" "CMakeFiles/chat_client.dir/src/main.cpp.o.d"
+  "/home/vahram/project/Project/Project/client/src/client.cpp" "CMakeFiles/chat_client.dir/src/client.cpp.o" "gcc" "CMakeFiles/chat_client.dir/src/client.cpp.o.d"
+  "/home/vahram/project/Project/Project/client/src/client_utils.cpp" "CMakeFiles/chat_client.dir/src/client_utils.cpp.o" "gcc" "CMakeFiles/chat_client.dir/src/client_utils.cpp.o.d"
+  "/home/vahram/project/Project/Project/client/src/main.cpp" "CMakeFiles/chat_client.dir/src/main.cpp.o" "gcc" "CMakeFiles/chat_client.dir/src/main.cpp.o.d"
   )
 
 # Targets to which this target links.

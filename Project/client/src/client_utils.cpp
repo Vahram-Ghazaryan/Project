@@ -292,11 +292,11 @@ void change_port(int port) {
     }
 }
 
-static void print_help() {
+void print_help() {
     std::cout << "help_message" << std::endl;
 }
 
-static bool cmd_parse(const int argc, const char* argv[], std::string& username) {
+bool cmd_parse(const int argc, const char* argv[], std::string& username) {
     for(int i = 1; i < argc; i++) {
         std::string param_name = argv[i];
 

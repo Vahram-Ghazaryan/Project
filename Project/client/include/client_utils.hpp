@@ -16,7 +16,7 @@ void notify_server_status(std::shared_ptr<tcp::socket> server_socket, const std:
 void request_list(std::shared_ptr<tcp::socket> server_socket, const std::string& username);
 void change_host_ip(std::string ip);
 void change_port(int port);
-static bool cmd_parse(const int argc, const char* argv[], std::string& username);
+bool cmd_parse(const int argc, const char* argv[], std::string& username);
 std::pair<std::string, std::string> read_config(const std::string& filename);
 
 #endif // CLIENT_UTILS_HPP
