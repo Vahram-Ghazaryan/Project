@@ -629,6 +629,24 @@ void change_host_ip(std::string ip) {
 
 
 }
+
+bool file_exists(const std::string& filename) {
+    std::ifstream file(filename);
+    return !file.good();
+}
+
+bool is_file_empty(const std::string& filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error opening file\n";
+        return false;
+    }
+    file.seekg(0, std::ios::end); 
+    std::streamsize size = file.tellg();
+    file.close();
+    return size == 0;
+}
+
 void change_port(int port) {
     if (port > 1023 && port < 65535) {
         std::fstream file("chat.conf", std::ios::in);
@@ -654,11 +672,11 @@ void change_port(int port) {
     }
 }
 
-static void print_help() {
+void print_help() {
     std::cout << "help_message" << std::endl;
 }
 
-static bool cmd_parse(const int argc, const char* argv[], std::string& username) {
+bool cmd_parse(const int argc, const char* argv[], std::string& username) {
     for(int i = 1; i < argc; i++) {
         std::string param_name = argv[i];
 
@@ -712,6 +730,12 @@ int main(int argc, char* argv[]) {
         } else {
             std::cerr << "Usage: client --username <username> or -u <username>\n";
             return 1;
+        }
+        if (file_exists("chat.conf") || is_file_empty("chat.conf")) {
+            std::ofstream file("chat.conf");
+            file << "hostIp \n" << "port\n";
+            file.close();
+            std::cerr << "Wirte hostIP and(or) port in chat.conf file or use --change_host_ip and --change_port\n";
         }
         auto [host, port] = read_config("chat.conf");
 
