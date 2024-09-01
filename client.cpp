@@ -219,9 +219,6 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
     });
 }
 
-
-
-
 void parse_file_info(const std::string& input, std::string& filename, std::streamsize& file_size) {
  
     std::size_t space_pos = input.find(' ');
@@ -273,7 +270,6 @@ void send_file_part(boost::asio::ip::tcp::socket& socket, const std::string& fil
         std::cerr << "Exception in send_file_part: " << e.what() << '\n';
     }
 }
-
 
 void send_file_multithreaded(const std::string& file_path, boost::asio::ip::tcp::socket& socket) {
     try {
@@ -455,9 +451,6 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     }
 }
 
-
-
-
 void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username, std::shared_ptr<std::atomic<bool>> connected_ptr, std::shared_ptr<std::atomic<bool>> getlineThread_ptr) {
     auto new_socket = std::make_shared<tcp::socket>(io_context);
     acceptor->async_accept(*new_socket, [new_socket, acceptor, &io_context, server_socket, username, connected_ptr, getlineThread_ptr](const boost::system::error_code& error) {
@@ -541,7 +534,6 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
     });
 }
 
-
 std::pair<std::string, std::string> read_config(const std::string& filename) {
     std::ifstream config_file(filename);
     std::string line, host, port;
@@ -560,6 +552,7 @@ std::pair<std::string, std::string> read_config(const std::string& filename) {
 
     return {host, port};
 }
+
 bool is_octet(std::string octet) {
     if (octet == "0") {
         return true;
@@ -570,6 +563,7 @@ bool is_octet(std::string octet) {
     }
     return false;
 }
+
 void change_host_ip(std::string ip) {
     std::string octet;
     int find_octet = 0;
@@ -608,6 +602,23 @@ void change_host_ip(std::string ip) {
 
 
 }
+
+bool file_exists(const std::string& filename) {
+    std::ifstream file(filename);
+    return !file.good();
+}
+
+bool is_file_empty(const std::string& filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error opening file\n";
+        return false;
+    }
+    std::streamsize size = file.tellg();
+    file.close();
+    return size == 0;
+}
+
 void change_port(int port) {
     if (port > 1023 && port < 65535) {
         std::fstream file("chat.conf", std::ios::in);
@@ -692,6 +703,13 @@ int main(int argc, char* argv[]) {
             std::cerr << "Usage: client --username <username> or -u <username>\n";
             return 1;
         }
+
+        if (file_exists("chat.conf") || is_file_empty("chat.conf")) {
+            std::ofstream file("chat.conf");
+            file << "hostIp \n" << "port\n";
+            file.close();
+            std::cerr << "Wirte hostIP and(or) port in chat.conf file or use --change_host_ip and --change_port\n";
+        }
         auto [host, port] = read_config("chat.conf");
 
         if (host.empty() || port.empty()) {
@@ -724,8 +742,6 @@ int main(int argc, char* argv[]) {
                     std::thread handle_thread([server_socket, &io_context, username, connected_ptr, getlineThread_ptr]() {
                         handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
                     });
-                   // handle_thread.detach();
-
                     // Run io_context in a loop to check for pending async operations
                     while (true) {
                         io_context.run();
@@ -736,11 +752,9 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Error during connect: " << error.message() << "\n";
             }
         });
-
         io_context.run();
     } catch (std::exception& e) {
         std::cerr << "Exception: " << e.what() << "\n";
     }
-
     return 0;
 }
