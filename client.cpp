@@ -495,13 +495,14 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                             std::thread chat_thread(start_chat, new_socket, server_socket, username, connected_ptr, getlineThread_ptr);
                             chat_thread.detach();
                         } else if (reply == "reject") {
-                        	connected_ptr -> store(false);
-                        	getlineThread_ptr -> store(true);
-                        	new_socket -> cancel();
-                        	new_socket -> close();
                             boost::asio::async_write(*new_socket, boost::asio::buffer(reply), handle_write);
                             std::cout << "Connection rejected." << std::endl;
-                            notify_server_status(server_socket, "free", username);                            
+                            new_socket -> cancel();
+                        	new_socket -> close();
+                            connected_ptr -> store(false);
+                        	getlineThread_ptr -> store(true);
+                            std::this_thread::sleep_for(std::chrono::milliseconds(100));  
+                            notify_server_status(server_socket, "free", username);                          
                             handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
                             return;
                         }
@@ -509,8 +510,8 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                 }
             });
         } else {
+            notify_server_status(server_socket, "free", username);
             std::cerr << "Error during accept: " << error.message() << "\n";
-          
             handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
         }
 
@@ -539,16 +540,19 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
                         chat_thread.detach();
                     } else if (replay == "reject") {
                         std::cout << "Connection rejected." << std::endl;
-                        notify_server_status(server_socket, "free", username);
                         connected_ptr -> store(false);
                         getlineThread_ptr -> store(true);
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
                         client_socket -> cancel();
-                        client_socket -> close();                            
+                        client_socket -> close();
+                        notify_server_status(server_socket, "free", username);                            
                         handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
                         return;
                     }
-                } else {
+                } else {                   
+                    notify_server_status(server_socket, "free", username);
                     std::cerr << "Error during read from new client: " << error.message() << "\n";
+                    handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
                 }
             });
         } else {
