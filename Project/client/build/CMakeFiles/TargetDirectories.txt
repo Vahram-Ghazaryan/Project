@@ -1,0 +1,3 @@
+/home/aram/Desktop/project1/git/Project/client/build/CMakeFiles/chat_client.dir
+/home/aram/Desktop/project1/git/Project/client/build/CMakeFiles/edit_cache.dir
+/home/aram/Desktop/project1/git/Project/client/build/CMakeFiles/rebuild_cache.dir
