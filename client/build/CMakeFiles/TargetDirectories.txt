@@ -1,0 +1,3 @@
+/home/vahram/project/Project/client/build/CMakeFiles/chat_client.dir
+/home/vahram/project/Project/client/build/CMakeFiles/edit_cache.dir
+/home/vahram/project/Project/client/build/CMakeFiles/rebuild_cache.dir
