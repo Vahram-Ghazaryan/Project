@@ -253,8 +253,6 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                         std::string reply;
                         std::cout << "Connection request from " << response.substr(8) << std::endl;
                         std::cout << "Press Enter to continue" <<  std::endl;
-                        //std::cin.get();
-                        //std::cout << "Write [accept] or [reject]\t"; 
                         std::getline(std::cin, reply);
                         while (!(reply == "accept" || reply == "reject")) {
                             std::cerr << "Wrong command! Input again:\t";
