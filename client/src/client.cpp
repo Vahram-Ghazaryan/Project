@@ -93,7 +93,11 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                     std::string target_username;                    
                     getlineThread_ptr -> store(false);                	
                     std::getline(std::cin, target_username);
-                                                                           						
+                    if (connected_ptr -> load()) {
+                        std::cout << "Write [accept] or [reject]\t";
+                        return;
+                    }
+
                     while ((clients_list.find(target_username) == clients_list.end() || clients_list[target_username] == false)) {
                         if (connected_ptr -> load()) {
                             return;
@@ -248,9 +252,9 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                         connected_ptr -> store(true);
                         std::string reply;
                         std::cout << "Connection request from " << response.substr(8) << std::endl;
-                        std::cout << "Press Enter to continue(2 time)" <<  std::endl;
-                        std::cin.get();
-                        std::cout << "Write [accept] or [reject]\t"; 
+                        std::cout << "Press Enter to continue" <<  std::endl;
+                        //std::cin.get();
+                        //std::cout << "Write [accept] or [reject]\t"; 
                         std::getline(std::cin, reply);
                         while (!(reply == "accept" || reply == "reject")) {
                             std::cerr << "Wrong command! Input again:\t";
