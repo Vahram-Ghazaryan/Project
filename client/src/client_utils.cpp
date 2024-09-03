@@ -187,6 +187,7 @@ void receive_file_part(boost::asio::ip::tcp::socket& socket, std::ofstream& file
 
 void receive_file_multithreaded(boost::asio::ip::tcp::socket& socket, const std::string& filename, std::streamsize file_size, std::atomic<bool>& receive) {
     try {
+    	std::filesystem::create_directories("received_files");
         std::ofstream file("received_files/" + filename, std::ios::binary);
         if (!file) {
             std::cerr << "Failed to create file.\n";

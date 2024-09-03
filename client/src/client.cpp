@@ -39,7 +39,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                     if (print_welcome) {
                         std::cout << "𝕎 𝔼 𝕃 ℂ 𝕆 𝕄 𝔼  𝕋 𝕆  𝕃 𝕀ℕ 𝕌 𝕏  ℂ ℍ 𝔸 𝕋\n";
                         print_welcome = false;
-                    }
+                    } 
                     if (response.find("There is no online user") == std::string::npos && response.size() > 35) {
                         std::cout << "\n " << response.substr(0, 33);
                         std::string list = response.substr(33);
@@ -87,9 +87,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                     std::thread([username, server_socket, response, socket, &io_context, connected_ptr, getlineThread_ptr]() { 
                     if (connected_ptr -> load()) {
                         return;
-                    }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                    
+                    }                    
                     std::string target_username;                    
                     getlineThread_ptr -> store(false);                	
                     std::getline(std::cin, target_username);
@@ -113,6 +111,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                     if (target_username != "") {
                                     
                     std::cout << "IP address of the selected client: " << clients_username_ip[target_username] << std::endl;
+                    std::cout << "Wait for another client to accept the connection.." << std::endl;
                     connect_to_client(clients_username_ip[target_username], io_context, server_socket, username, connected_ptr, getlineThread_ptr);
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     return;
@@ -149,10 +148,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 stop_chatting = true;
                 connected_ptr -> store(false);
                 getlineThread_ptr -> store(true);
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                notify_server_status(server_socket, "free", username);
-                handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
-                std::cout << "The other client has disconnected\nPress enter to continue." << std::endl;
+                std::cout << "The other client has disconnected\nPress enter to continue." << std::endl;                
                 return;
             } else if (message.find("/file") == 0) {
                 std::string input = message.substr(6); 
@@ -174,10 +170,8 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             	client_socket->close();
             	connected_ptr -> store(false);
                 getlineThread_ptr -> store(true);
-                notify_server_status(server_socket, "free", username);
                 std::cout << "The other client closed the program incorrectly\nPress enter to continue." << std::endl;
                 stop_chatting = true;
-                handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
                 return;
             }
         }
@@ -189,7 +183,9 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         std::string message;
         std::cout << user_color << "You\n-----------" << reset_color << std::endl;
         std::getline(std::cin, message);
-        if (stop_chatting) {           
+        if (stop_chatting) { 
+        	notify_server_status(server_socket, "free", username);
+        	handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);          
             break;
         }
         if (message == "/disconnect") {
@@ -200,7 +196,6 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             stop_chatting = true;
             connected_ptr -> store(false);
             getlineThread_ptr -> store(true);
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             notify_server_status(server_socket, "free", username);
             handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);          
             break;
@@ -210,7 +205,6 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             client_socket->cancel();
             client_socket->close();
             notify_server_status(server_socket, "offline", username);
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             exit(0);
         } else if (message.find("/file") == 0) {
             std::string path = message.substr(6);
@@ -271,8 +265,7 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                             new_socket -> cancel();
                         	new_socket -> close();
                             connected_ptr -> store(false);
-                        	getlineThread_ptr -> store(true);
-                            std::this_thread::sleep_for(std::chrono::milliseconds(100));  
+                        	getlineThread_ptr -> store(true);  
                             notify_server_status(server_socket, "free", username);                          
                             handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
                             return;
@@ -299,7 +292,6 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
     boost::asio::async_connect(*client_socket, client_endpoints, [client_socket, server_socket, username, &io_context, connected_ptr, getlineThread_ptr](const boost::system::error_code& error, const tcp::endpoint&) {
         if (!error) {
             notify_server_status(server_socket, "no free", username);
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             connected_ptr -> store(true);
             boost::asio::async_write(*client_socket, boost::asio::buffer("request " + username), handle_write);
             auto buffer = std::make_shared<std::array<char, 1024>>();	
@@ -314,7 +306,6 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
                         std::cout << "Connection rejected." << std::endl;
                         connected_ptr -> store(false);
                         getlineThread_ptr -> store(true);
-                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
                         client_socket -> cancel();
                         client_socket -> close();
                         notify_server_status(server_socket, "free", username);                            

@@ -1,5 +1,5 @@
 CMakeFiles/chat_client.dir/src/main.cpp.o: \
- /home/vahram/project/Project/client/src/main.cpp \
+ /home/aram/Desktop/project1/git/Project/client/src/main.cpp \
  /usr/include/stdc-predef.h /usr/include/c++/11/iostream \
  /usr/include/x86_64-linux-gnu/c++/11/bits/c++config.h \
  /usr/include/x86_64-linux-gnu/c++/11/bits/os_defines.h \
@@ -146,7 +146,7 @@ CMakeFiles/chat_client.dir/src/main.cpp.o: \
  /usr/include/c++/11/bits/basic_ios.tcc \
  /usr/include/c++/11/bits/ostream.tcc /usr/include/c++/11/istream \
  /usr/include/c++/11/bits/istream.tcc \
- /home/vahram/project/Project/client/include/client.hpp \
+ /home/aram/Desktop/project1/git/Project/client/include/client.hpp \
  /usr/include/boost/asio.hpp \
  /usr/include/boost/asio/associated_allocator.hpp \
  /usr/include/boost/asio/detail/config.hpp /usr/include/boost/config.hpp \
@@ -1127,4 +1127,4 @@ CMakeFiles/chat_client.dir/src/main.cpp.o: \
  /usr/include/c++/11/bits/fs_fwd.h /usr/include/c++/11/bits/fs_path.h \
  /usr/include/c++/11/codecvt /usr/include/c++/11/bits/fs_dir.h \
  /usr/include/c++/11/bits/fs_ops.h \
- /home/vahram/project/Project/client/include/client_utils.hpp
+ /home/aram/Desktop/project1/git/Project/client/include/client_utils.hpp
