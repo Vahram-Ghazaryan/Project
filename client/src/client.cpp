@@ -178,7 +178,6 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     };
 
     client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
-
     while (true) {
         std::string message;
         std::cout << user_color << "You\n-----------" << reset_color << std::endl;
