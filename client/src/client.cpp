@@ -134,7 +134,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     const std::string user_color = "\033[34m";  // Blue
     const std::string reset_color = "\033[0m";  // Reset to default
     std::atomic<bool> receive(false);
-    std::atomic<bool> stop_chatting{false};
+    bool stop_chatting = false;
     auto buffer = std::make_shared<std::array<char, 1024>>();
 	boost::asio::io_context io_context;
     std::function<void(const boost::system::error_code&, std::size_t)> read_handler;
