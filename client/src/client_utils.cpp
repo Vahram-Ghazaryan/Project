@@ -84,14 +84,14 @@ void request_list(std::shared_ptr<tcp::socket> server_socket, const std::string&
     });
 }
 
-void parse_file_info(const std::string& input, std::string& filename, std::streamsize& file_size) {
- 
-    std::size_t space_pos = input.find(' ');
-    std::size_t colon_pos = input.find(':', space_pos);
+void parse_file_info(std::string& filename, std::streamsize& file_size) {
+	std::string input = filename;
+    std::size_t colon_pos = input.rfind(':');
 
-    if (space_pos != std::string::npos && colon_pos != std::string::npos) {
- 
-        filename = input.substr(space_pos + 1, colon_pos - space_pos - 1);
+    if (colon_pos != std::string::npos) {
+        std::string full_path = input.substr(0, colon_pos);
+
+        filename = std::filesystem::path(full_path).filename().string();
 
         std::string size_str = input.substr(colon_pos + 1);
         try {
@@ -105,6 +105,8 @@ void parse_file_info(const std::string& input, std::string& filename, std::strea
         std::cerr << "Invalid input format.\n";
     }
 }
+
+
 
 std::string extract_filename(const std::string& file_path) {
     return file_path.substr(file_path.find_last_of("/\\") + 1);
@@ -190,11 +192,12 @@ void receive_file_multithreaded(boost::asio::ip::tcp::socket& socket, const std:
     	std::filesystem::create_directories("received_files");
         std::ofstream file("received_files/" + filename, std::ios::binary);
         if (!file) {
+        	boost::asio::write(socket, boost::asio::buffer("FAILED"));
             std::cerr << "Failed to create file.\n";
             receive = false;
             return;
         }
-
+		boost::asio::write(socket, boost::asio::buffer("FILE_CREATED\n"));
         const std::size_t num_threads = std::thread::hardware_concurrency();
         std::streamsize part_size = file_size / num_threads;
 

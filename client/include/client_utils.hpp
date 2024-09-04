@@ -7,7 +7,7 @@ using boost::asio::ip::tcp;
 
 std::string replace_emojis(const std::string& message);
 void print_message(const std::string& sender, const std::string& message, bool is_current_user);
-void parse_file_info(const std::string& input, std::string& filename, std::streamsize& file_size);
+void parse_file_info(std::string& filename, std::streamsize& file_size);
 void send_file_part(boost::asio::ip::tcp::socket& socket, const std::string& file_path, std::streamsize offset, std::streamsize part_size);
 void send_file_multithreaded(const std::string& file_path, boost::asio::ip::tcp::socket& socket);
 void receive_file_part(boost::asio::ip::tcp::socket& socket, std::ofstream& file, std::streamsize offset, std::streamsize part_size);
