@@ -3,7 +3,7 @@
 
 namespace fs = std::filesystem;
 using boost::asio::ip::tcp;
-
+std::mutex mutex;
 
 void connect_to_client(const std::string& client_ip, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username, std::shared_ptr<std::atomic<bool>> connected_ptr, std::shared_ptr<std::atomic<bool>> getlineThread_ptr);
 
@@ -138,8 +138,8 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     auto buffer = std::make_shared<std::array<char, 1024>>();
 	boost::asio::io_context io_context;
     std::function<void(const boost::system::error_code&, std::size_t)> read_handler;
-
-    read_handler = [client_socket, server_socket, buffer, username, &stop_chatting, &read_handler, &receive, connected_ptr, &io_context, getlineThread_ptr](const boost::system::error_code& error, std::size_t length) mutable {
+    std::string path;
+    read_handler = [client_socket, server_socket, buffer, username, &stop_chatting, &read_handler, &receive, connected_ptr, &io_context, getlineThread_ptr, &path](const boost::system::error_code& error, std::size_t length) mutable {
         if (!error) {
             std::string message(buffer->data(), length);
             if (message.find("/disconnect") == 0) {
@@ -158,10 +158,15 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 receive = true;
                 receive_file_multithreaded(*client_socket, filename, file_size, receive);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
+            } else if (message.find("FILE_CREATED") != std::string::npos) {
+                        std::cout << "Confirmation received. Let's start sending the file..." << std::endl;
+                        send_file_multithreaded(path, *client_socket);
+                        client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
+                        receive = true;
             } else if (!receive) {
                 print_message(username, message, false);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
-            }
+            } 
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (!stop_chatting) {
@@ -205,7 +210,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             notify_server_status(server_socket, "offline", username);
             exit(0);
         } else if (message.find("/file") == 0) {
-            std::string path = message.substr(6);
+            path = message.substr(6);
             std::ifstream file(path, std::ios::binary | std::ios::ate);
             if (!file) {
                 std::cerr << "Error to open file.\n";
@@ -214,23 +219,6 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 file.close();
                 std::string file_size_str = std::to_string(file_size);
                 boost::asio::async_write(*client_socket, boost::asio::buffer("/file " + path + ":" + file_size_str), handle_write);
-                
-                std::vector<char> confirmation_buffer(1024);
-                boost::system::error_code ec;
-                std::size_t len = client_socket->read_some(boost::asio::buffer(confirmation_buffer), ec);
-
-                if (!ec) {
-                    std::string confirmation_message(confirmation_buffer.data(), len);
-                    if (confirmation_message.find("FILE_CREATED") == 0) {
-                        std::cout << "Confirmation received. Let's start sending the file..." << std::endl;
-                        send_file_multithreaded(path, *client_socket);
-                        client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
-                    } else {
-                        std::cerr << "Failed to receive file creation confirmation.\n" << confirmation_message;
-                    }
-                } else {
-                    std::cerr << "Error while waiting for confirmation: " << ec.message() << std::endl;
-                }
             }
         } else if (!stop_chatting && message != "") {
             std::string full_message = username + ": " + replace_emojis(message);
