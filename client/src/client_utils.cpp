@@ -187,17 +187,19 @@ void receive_file_part(boost::asio::ip::tcp::socket& socket, std::ofstream& file
     }
 }
 
-void receive_file_multithreaded(boost::asio::ip::tcp::socket& socket, const std::string& filename, std::streamsize file_size, std::atomic<bool>& receive) {
+void receive_file_multithreaded(boost::asio::ip::tcp::socket& socket, const std::string& filename, std::streamsize file_size, std::atomic<bool>& receive, char key) {
     try {
     	std::filesystem::create_directories("received_files");
         std::ofstream file("received_files/" + filename, std::ios::binary);
         if (!file) {
-        	boost::asio::write(socket, boost::asio::buffer("FAILED"));
+        	std::string answer = xor_encrypt_decrypt("FAILED", key);
+        	boost::asio::write(socket, boost::asio::buffer(answer));
             std::cerr << "Failed to create file.\n";
             receive = false;
             return;
         }
-		boost::asio::write(socket, boost::asio::buffer("FILE_CREATED\n"));
+        std::string answer = xor_encrypt_decrypt("FILE_CREATED\n", key);
+		boost::asio::write(socket, boost::asio::buffer(answer));
         const std::size_t num_threads = std::thread::hardware_concurrency();
         std::streamsize part_size = file_size / num_threads;
 
@@ -379,3 +381,10 @@ std::pair<std::string, std::string> read_config(const std::string& filename) {
     return {host, port};
 }
 
+std::string xor_encrypt_decrypt(const std::string& input, char key) {
+    std::string output = input;
+    for (char& c : output) {
+        c ^= key; // XOR operation
+    }
+    return output;
+}

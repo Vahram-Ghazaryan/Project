@@ -136,32 +136,35 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     std::atomic<bool> receive(false);
     bool stop_chatting = false;
     auto buffer = std::make_shared<std::array<char, 1024>>();
-	boost::asio::io_context io_context;
+    boost::asio::io_context io_context;
     std::function<void(const boost::system::error_code&, std::size_t)> read_handler;
     std::string path;
-    read_handler = [client_socket, server_socket, buffer, username, &stop_chatting, &read_handler, &receive, connected_ptr, &io_context, getlineThread_ptr, &path](const boost::system::error_code& error, std::size_t length) mutable {
+    const char encryption_key = 'K'; // Example key for XOR
+
+    read_handler = [client_socket, server_socket, buffer, username, &stop_chatting, &read_handler, &receive, connected_ptr, &io_context, getlineThread_ptr, &path, encryption_key](const boost::system::error_code& error, std::size_t length) mutable {
         if (!error) {
-            std::string message(buffer->data(), length);
+            std::string encrypted_message(buffer->data(), length);
+            std::string message = xor_encrypt_decrypt(encrypted_message, encryption_key); // Decrypt message
             if (message.find("/disconnect") == 0) {
-            	client_socket->cancel();
+                client_socket->cancel();
                 client_socket->close();
                 stop_chatting = true;
-                connected_ptr -> store(false);
-                getlineThread_ptr -> store(true);
+                connected_ptr->store(false);
+                getlineThread_ptr->store(true);
                 std::cout << "The other client has disconnected\nPress enter to continue." << std::endl;                
                 return;
             } else if (message.find("/file") == 0) {
-                std::string filename = message.substr(6); 
+                std::string filename = message.substr(6);
                 std::streamsize file_size;
                 parse_file_info(filename, file_size);
                 std::cout << "Receiving file: " << filename << std::endl;
                 receive = true;
-                receive_file_multithreaded(*client_socket, filename, file_size, receive);
+                receive_file_multithreaded(*client_socket, filename, file_size, receive, encryption_key);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             } else if (message.find("FILE_CREATED") != std::string::npos) {
-                        std::cout << "Confirmation received. Let's start sending the file..." << std::endl;
-                        send_file_multithreaded(path, *client_socket);
-                        client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
+                std::cout << "Confirmation received. Let's start sending the file..." << std::endl;
+                send_file_multithreaded(path, *client_socket);
+                client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             } else if (!receive) {
                 print_message(username, message, false);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
@@ -169,10 +172,10 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (!stop_chatting) {
-            	client_socket->cancel();
-            	client_socket->close();
-            	connected_ptr -> store(false);
-                getlineThread_ptr -> store(true);
+                client_socket->cancel();
+                client_socket->close();
+                connected_ptr->store(false);
+                getlineThread_ptr->store(true);
                 std::cout << "The other client closed the program incorrectly\nPress enter to continue." << std::endl;
                 stop_chatting = true;
                 return;
@@ -186,24 +189,26 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         std::cout << user_color << "You\n-----------" << reset_color << std::endl;
         std::getline(std::cin, message);
         if (stop_chatting) { 
-        	notify_server_status(server_socket, "free", username);
-        	handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);          
+            notify_server_status(server_socket, "free", username);
+            handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);          
             break;
         }
         if (message == "/disconnect") {
             std::cout << "Disconnecting chat." << std::endl;
-            boost::asio::async_write(*client_socket, boost::asio::buffer("/disconnect"), handle_write);
+            std::string encrypted_message = xor_encrypt_decrypt("/disconnect", encryption_key);
+            boost::asio::async_write(*client_socket, boost::asio::buffer(encrypted_message), handle_write);
             client_socket->cancel();
             client_socket->close();
             stop_chatting = true;
-            connected_ptr -> store(false);
-            getlineThread_ptr -> store(true);
+            connected_ptr->store(false);
+            getlineThread_ptr->store(true);
             notify_server_status(server_socket, "free", username);
             handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);          
             break;
         } else if (message == "/exit") {
             std::cout << "Exiting program." << std::endl;
-            boost::asio::async_write(*client_socket, boost::asio::buffer("/disconnect"), handle_write);
+            std::string encrypted_message = xor_encrypt_decrypt("/disconnect", encryption_key);
+            boost::asio::async_write(*client_socket, boost::asio::buffer(encrypted_message), handle_write);
             client_socket->cancel();
             client_socket->close();
             notify_server_status(server_socket, "offline", username);
@@ -217,18 +222,17 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 std::streamsize file_size = file.tellg();
                 file.close();
                 std::string file_size_str = std::to_string(file_size);
-                boost::asio::async_write(*client_socket, boost::asio::buffer("/file " + path + ":" + file_size_str), handle_write);
+                std::string encrypted_message = xor_encrypt_decrypt("/file " + path + ":" + file_size_str, encryption_key);
+                boost::asio::async_write(*client_socket, boost::asio::buffer(encrypted_message), handle_write);
             }
         } else if (!stop_chatting && message != "") {
             std::string full_message = username + ": " + replace_emojis(message);
-            boost::asio::async_write(*client_socket, boost::asio::buffer(full_message), handle_write);
+            std::string encrypted_message = xor_encrypt_decrypt(full_message, encryption_key);
+            boost::asio::async_write(*client_socket, boost::asio::buffer(encrypted_message), handle_write);
             print_message("You", message, true);
         }
     }
 }
-
-
-
 
 void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username, std::shared_ptr<std::atomic<bool>> connected_ptr, std::shared_ptr<std::atomic<bool>> getlineThread_ptr) {
     auto new_socket = std::make_shared<tcp::socket>(io_context);
