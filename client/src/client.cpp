@@ -162,7 +162,6 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                         std::cout << "Confirmation received. Let's start sending the file..." << std::endl;
                         send_file_multithreaded(path, *client_socket);
                         client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
-                        receive = true;
             } else if (!receive) {
                 print_message(username, message, false);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
