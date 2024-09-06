@@ -139,12 +139,11 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     boost::asio::io_context io_context;
     std::function<void(const boost::system::error_code&, std::size_t)> read_handler;
     std::string path;
-    const char encryption_key = 'K'; // Example key for XOR
 
-    read_handler = [client_socket, server_socket, buffer, username, &stop_chatting, &read_handler, &receive, connected_ptr, &io_context, getlineThread_ptr, &path, encryption_key](const boost::system::error_code& error, std::size_t length) mutable {
+    read_handler = [client_socket, server_socket, buffer, username, &stop_chatting, &read_handler, &receive, connected_ptr, &io_context, getlineThread_ptr, &path](const boost::system::error_code& error, std::size_t length) mutable {
         if (!error) {
             std::string encrypted_message(buffer->data(), length);
-            std::string message = xor_encrypt_decrypt(encrypted_message, encryption_key); // Decrypt message
+            std::string message = aes_decrypt(encrypted_message);
             if (message.find("/disconnect") == 0) {
                 client_socket->cancel();
                 client_socket->close();
@@ -159,7 +158,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 parse_file_info(filename, file_size);
                 std::cout << "Receiving file: " << filename << std::endl;
                 receive = true;
-                receive_file_multithreaded(*client_socket, filename, file_size, receive, encryption_key);
+                receive_file_multithreaded(*client_socket, filename, file_size, receive);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             } else if (message.find("FILE_CREATED") != std::string::npos) {
                 std::cout << "Confirmation received. Let's start sending the file..." << std::endl;
@@ -195,7 +194,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         }
         if (message == "/disconnect") {
             std::cout << "Disconnecting chat." << std::endl;
-            std::string encrypted_message = xor_encrypt_decrypt("/disconnect", encryption_key);
+            std::string encrypted_message = aes_encrypt("/disconnect");
             boost::asio::async_write(*client_socket, boost::asio::buffer(encrypted_message), handle_write);
             client_socket->cancel();
             client_socket->close();
@@ -207,7 +206,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             break;
         } else if (message == "/exit") {
             std::cout << "Exiting program." << std::endl;
-            std::string encrypted_message = xor_encrypt_decrypt("/disconnect", encryption_key);
+            std::string encrypted_message = aes_encrypt("/disconnect");
             boost::asio::async_write(*client_socket, boost::asio::buffer(encrypted_message), handle_write);
             client_socket->cancel();
             client_socket->close();
@@ -222,12 +221,13 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 std::streamsize file_size = file.tellg();
                 file.close();
                 std::string file_size_str = std::to_string(file_size);
-                std::string encrypted_message = xor_encrypt_decrypt("/file " + path + ":" + file_size_str, encryption_key);
+                std::string file_info = "/file " + path + ":" + file_size_str;
+				std::string encrypted_message = aes_encrypt(file_info);
                 boost::asio::async_write(*client_socket, boost::asio::buffer(encrypted_message), handle_write);
             }
         } else if (!stop_chatting && message != "") {
             std::string full_message = username + ": " + replace_emojis(message);
-            std::string encrypted_message = xor_encrypt_decrypt(full_message, encryption_key);
+            std::string encrypted_message = aes_encrypt(full_message);
             boost::asio::async_write(*client_socket, boost::asio::buffer(encrypted_message), handle_write);
             print_message("You", message, true);
         }

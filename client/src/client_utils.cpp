@@ -1,9 +1,12 @@
 #include "client.hpp"
 #include "client_utils.hpp"
-
+#include <openssl/evp.h>
+#include <openssl/aes.h>
+#include <openssl/rand.h>
 
 namespace fs = std::filesystem;
 using boost::asio::ip::tcp;
+
 
 std::unordered_map<std::string, std::string> emoji_map = {
     {":smile", "😊"},
@@ -187,18 +190,20 @@ void receive_file_part(boost::asio::ip::tcp::socket& socket, std::ofstream& file
     }
 }
 
-void receive_file_multithreaded(boost::asio::ip::tcp::socket& socket, const std::string& filename, std::streamsize file_size, std::atomic<bool>& receive, char key) {
+void receive_file_multithreaded(boost::asio::ip::tcp::socket& socket, const std::string& filename, std::streamsize file_size, std::atomic<bool>& receive) {
     try {
     	std::filesystem::create_directories("received_files");
         std::ofstream file("received_files/" + filename, std::ios::binary);
         if (!file) {
-        	std::string answer = xor_encrypt_decrypt("FAILED", key);
+        	std::string answer = aes_encrypt("FAILED");
+
+
         	boost::asio::write(socket, boost::asio::buffer(answer));
             std::cerr << "Failed to create file.\n";
             receive = false;
             return;
         }
-        std::string answer = xor_encrypt_decrypt("FILE_CREATED\n", key);
+        std::string answer = aes_encrypt("FILE_CREATED\n");
 		boost::asio::write(socket, boost::asio::buffer(answer));
         const std::size_t num_threads = std::thread::hardware_concurrency();
         std::streamsize part_size = file_size / num_threads;
@@ -384,7 +389,41 @@ std::pair<std::string, std::string> read_config(const std::string& filename) {
 std::string xor_encrypt_decrypt(const std::string& input, char key) {
     std::string output = input;
     for (char& c : output) {
-        c ^= key; // XOR operation
+        c ^= key;
     }
     return output;
 }
+
+const std::string aes_key = "0123456789abcdef0123456789abcdef"; 
+const std::string aes_iv = "abcdef9876543210";
+
+std::string aes_encrypt(const std::string& plaintext) {
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    std::vector<unsigned char> ciphertext(plaintext.size() + AES_BLOCK_SIZE);
+    int len = 0;
+
+    EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, (unsigned char*)aes_key.data(), (unsigned char*)aes_iv.data());
+    EVP_EncryptUpdate(ctx, ciphertext.data(), &len, (unsigned char*)plaintext.data(), plaintext.size());
+    int ciphertext_len = len;
+    EVP_EncryptFinal_ex(ctx, ciphertext.data() + len, &len);
+    ciphertext_len += len;
+
+    EVP_CIPHER_CTX_free(ctx);
+    return std::string(ciphertext.begin(), ciphertext.begin() + ciphertext_len);
+}
+
+std::string aes_decrypt(const std::string& ciphertext) {
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    std::vector<unsigned char> plaintext(ciphertext.size());
+    int len = 0;
+
+    EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, (unsigned char*)aes_key.data(), (unsigned char*)aes_iv.data());
+    EVP_DecryptUpdate(ctx, plaintext.data(), &len, (unsigned char*)ciphertext.data(), ciphertext.size());
+    int plaintext_len = len;
+    EVP_DecryptFinal_ex(ctx, plaintext.data() + len, &len);
+    plaintext_len += len;
+
+    EVP_CIPHER_CTX_free(ctx);
+    return std::string(plaintext.begin(), plaintext.begin() + plaintext_len);
+}
+

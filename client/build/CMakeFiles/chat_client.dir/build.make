@@ -124,6 +124,8 @@ chat_client: CMakeFiles/chat_client.dir/src/client.cpp.o
 chat_client: CMakeFiles/chat_client.dir/src/client_utils.cpp.o
 chat_client: CMakeFiles/chat_client.dir/src/main.cpp.o
 chat_client: CMakeFiles/chat_client.dir/build.make
+chat_client: /usr/lib/x86_64-linux-gnu/libssl.so
+chat_client: /usr/lib/x86_64-linux-gnu/libcrypto.so
 chat_client: CMakeFiles/chat_client.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/aram/Desktop/project1/git/Project/client/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable chat_client"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/chat_client.dir/link.txt --verbose=$(VERBOSE)
