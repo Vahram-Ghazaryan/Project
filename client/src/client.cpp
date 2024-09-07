@@ -26,9 +26,9 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
     [socket, server_socket, buffer, &io_context, username, connected_ptr, getlineThread_ptr]
     (const boost::system::error_code& error, std::size_t length) {
         if (!error) {
+            std::string response(buffer->data(), length);
             static std::unordered_map<std::string, bool> clients_list;
             static std::unordered_map<std::string, std::string> clients_username_ip;
-            std::string response(buffer->data(), length);
             static bool print_welcome = true;
             
                 if (connected_ptr -> load()) {
@@ -40,6 +40,10 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                         print_welcome = false;
                     } else {
                         std::cout << "𝕃 𝕀ℕ 𝕌 𝕏  ℂ ℍ 𝔸 𝕋\n";
+                    }
+                    if (response.find("That username is not available") != std::string::npos) {
+                        std::cout << response << std::endl;
+                        std::exit(0);
                     }
                     if (response.find("There is no online user") == std::string::npos && response.size() > 35) {
                         std::cout << "\n " << response.substr(0, 33);
@@ -183,8 +187,8 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     };
 
     client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
+    std::string message;
     while (true) {
-        std::string message;
         std::cout << user_color << "You\n-----------" << reset_color << std::endl;
         std::getline(std::cin, message);
         if (stop_chatting) { 
@@ -272,6 +276,7 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
                             connected_ptr -> store(false);
                         	getlineThread_ptr -> store(true);  
                             notify_server_status(server_socket, "free", username);                          
+                            std::this_thread::sleep_for(std::chrono::milliseconds(100));
                             handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
                             return;
                         }
@@ -324,6 +329,7 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
                         client_socket -> cancel();
                         client_socket -> close();
                         notify_server_status(server_socket, "free", username);                            
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
                         handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
                         return;
                     }
