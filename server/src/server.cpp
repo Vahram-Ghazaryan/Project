@@ -187,11 +187,6 @@ void handle_read(std::shared_ptr<tcp::socket> socket, bool start_connection, std
             send_updated_list(client_ip_sockets, client_username_ip, changed_list, free_clients);
             handle_read(socket, false, username_for_other_scope);
         }
-        if (request == "list") {
-            username = recived_data.substr(end_of_request + 1);
-            send_list(socket, username, client_username_ip); 
-            handle_read(socket, false, username_for_other_scope);
-        }
         auto it = client_username_ip.find(request);
         if (it !=  client_username_ip.end()) {
             change_status(socket, recived_data, end_of_request, request, client_username_ip, changed_list, free_clients, client_ip_sockets);
