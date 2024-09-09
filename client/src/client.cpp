@@ -377,4 +377,4 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
             handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
         }
     });
-}
+} 
