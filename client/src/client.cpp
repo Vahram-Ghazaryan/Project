@@ -116,7 +116,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                     if (target_username != "") {
                                     
                     std::cout << "IP address of the selected client: " << clients_username_ip[target_username] << std::endl;
-                    std::cout << "Wait for another client to accept the connection.." << std::endl;
+                    std::cout << "Wait for another client to accept the connection(timeout 15 sec).." << std::endl;
                     connect_to_client(clients_username_ip[target_username], io_context, server_socket, username, connected_ptr, getlineThread_ptr);
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     return;
@@ -297,7 +297,7 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
             new_socket -> close();
             connected_ptr -> store(false);
             getlineThread_ptr -> store(true);
-            std::cout << "The other client closed the program incorrectly\nPress enter to continue." << std::endl;
+            std::cout << "The other client closed the program incorrectly or the request timed out\nPress enter to continue." << std::endl;
             std::cin.get();
             handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
         }
@@ -309,53 +309,75 @@ void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io
 
 void connect_to_client(const std::string& client_ip, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username, std::shared_ptr<std::atomic<bool>> connected_ptr, std::shared_ptr<std::atomic<bool>> getlineThread_ptr) {
     auto client_socket = std::make_shared<tcp::socket>(io_context);
+    auto timer = std::make_shared<boost::asio::steady_timer>(io_context, std::chrono::seconds(15));
+    
     tcp::resolver resolver(io_context);
     tcp::resolver::results_type client_endpoints = resolver.resolve(client_ip, "12347");
 
-    boost::asio::async_connect(*client_socket, client_endpoints, [client_socket, server_socket, username, &io_context, connected_ptr, getlineThread_ptr](const boost::system::error_code& error, const tcp::endpoint&) {
+    boost::asio::async_connect(*client_socket, client_endpoints, [client_socket, server_socket, username, &io_context, connected_ptr, getlineThread_ptr, timer](const boost::system::error_code& error, const tcp::endpoint&) {
         if (!error) {
             notify_server_status(server_socket, "no free", username);
-            connected_ptr -> store(true);
+            connected_ptr->store(true);
             boost::asio::async_write(*client_socket, boost::asio::buffer("request " + username), handle_write);
-            auto buffer = std::make_shared<std::array<char, 1024>>();	
-    	    client_socket->async_read_some(boost::asio::buffer(*buffer), [buffer, client_socket, server_socket, username, &io_context, connected_ptr, getlineThread_ptr] (const boost::system::error_code& error, std::size_t length) {
+
+            auto buffer = std::make_shared<std::array<char, 1024>>();
+            timer->async_wait([client_socket, timer, server_socket, username, connected_ptr, getlineThread_ptr, &io_context](const boost::system::error_code& ec) {
+                if (!ec) {
+                    std::cout << "Timeout: no response from client.\n";
+                    client_socket->cancel();
+
+                    notify_server_status(server_socket, "free", username);
+                    connected_ptr->store(false);
+                    getlineThread_ptr->store(true);
+                    std::cout << "Press Enter to continue." << std::endl;
+                    std::cin.get();
+                    handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
+                    return;
+                }
+            });
+            if (!connected_ptr->load()) {
+            	return;
+            }
+            client_socket->async_read_some(boost::asio::buffer(*buffer), [buffer, client_socket, server_socket, username, &io_context, connected_ptr, getlineThread_ptr, timer](const boost::system::error_code& error, std::size_t length) {
                 if (!error) {
-                    std::string replay(buffer -> data());
+                    timer->cancel();
+
+                    std::string replay(buffer->data());
                     if (replay == "accept") {
-                        std::cout << "Connected to client. You can now start chatting.\nUse /disconnect to disconnect from the other person and /exit to exit the program\nYou can also use these emojis :smile :sad :laugh :angry :wink :heart" << std::endl;
+                        std::cout << "Connected to client. You can now start chatting.\nUse /disconnect to disconnect from the other person and /exit to exit the program.\n";
                         
                         std::thread chat_thread([client_socket, server_socket, username, connected_ptr, getlineThread_ptr, &io_context]() {
-                        start_chat(client_socket, server_socket, username, connected_ptr, getlineThread_ptr, io_context);
-                    	});
-                    	chat_thread.detach();
+                            start_chat(client_socket, server_socket, username, connected_ptr, getlineThread_ptr, io_context);
+                        });
+                        chat_thread.detach();
                     } else if (replay == "reject") {
                         std::cout << "Connection rejected." << std::endl;
-                        std::cout << "Press Enter to continue" <<  std::endl;
+                        std::cout << "Press Enter to continue" << std::endl;
                         std::cin.get();
-                        connected_ptr -> store(false);
-                        getlineThread_ptr -> store(true);
-                        client_socket -> cancel();
-                        client_socket -> close();
-                        notify_server_status(server_socket, "free", username);                            
+                        connected_ptr->store(false);
+                        getlineThread_ptr->store(true);
+                        client_socket->cancel();
+                        client_socket->close();
+                        notify_server_status(server_socket, "free", username);
                         std::this_thread::sleep_for(std::chrono::milliseconds(100));
                         handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
                         return;
                     }
-                } else {                   
+                } else {
+                    timer->cancel();
                     notify_server_status(server_socket, "free", username);
-                    connected_ptr -> store(false);
-                    getlineThread_ptr -> store(true);
-                    client_socket -> cancel();
-                    client_socket -> close();
-                    std::cout << "The other client closed the program incorrectly\nPress enter to continue." << std::endl;
-                    std::cin.get();
+                    connected_ptr->store(false);
+                    getlineThread_ptr->store(true);
+                    client_socket->cancel();
+                    client_socket->close();                                       
                     handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
                 }
             });
         } else {
-            std::cerr << "Error during client connection: " << error.message() << "\n";            
+            std::cerr << "Error during client connection: " << error.message() << "\n";
             handle_read(server_socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
         }
     });
 }
+
 
