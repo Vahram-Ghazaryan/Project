@@ -87,22 +87,27 @@ void request_list(std::shared_ptr<tcp::socket> server_socket, const std::string&
     });
 }
 
-void parse_file_info(std::string& filename, std::streamsize& file_size) {
+void parse_file_info(std::string& filename, std::streamsize& file_size, size_t& num_threads) {
 	std::string input = filename;
     std::size_t colon_pos = input.rfind(':');
-
     if (colon_pos != std::string::npos) {
         std::string full_path = input.substr(0, colon_pos);
-
         filename = std::filesystem::path(full_path).filename().string();
-
         std::string size_str = input.substr(colon_pos + 1);
-        try {
-            file_size = std::stoll(size_str); 
-        } catch (const std::invalid_argument&) {
-            std::cerr << "Invalid size value: " << size_str << "\n";
-        } catch (const std::out_of_range&) {
-            std::cerr << "Size value out of range: " << size_str << "\n";
+        std::string num_threads_of_other_client = input.substr(colon_pos + 1);
+        std::size_t find_num_threads = num_threads_of_other_client.find(':');
+        if (find_num_threads != std::string::npos) {
+            num_threads_of_other_client = num_threads_of_other_client.substr(find_num_threads);
+            num_threads = std::atoi(num_threads_of_other_client.data());
+            try {
+                file_size = std::stoll(size_str); 
+            } catch (const std::invalid_argument&) {
+                std::cerr << "Invalid size value: " << size_str << "\n";
+            } catch (const std::out_of_range&) {
+                std::cerr << "Size value out of range: " << size_str << "\n";
+            }
+        } else {
+            std::cerr << "Invalid input format.\n";
         }
     } else {
         std::cerr << "Invalid input format.\n";
@@ -141,7 +146,7 @@ void send_file_part(boost::asio::ip::tcp::socket& socket, const std::string& fil
     }
 }
 
-void send_file_multithreaded(const std::string& file_path, boost::asio::ip::tcp::socket& socket) {
+void send_file_multithreaded(const std::string& file_path, boost::asio::ip::tcp::socket& socket, std::size_t num_threads) {
     try {
         std::ifstream file(file_path, std::ios::binary | std::ios::ate);
         if (!file) {
@@ -150,9 +155,7 @@ void send_file_multithreaded(const std::string& file_path, boost::asio::ip::tcp:
         }
 
         std::streamsize file_size = file.tellg();
-        const std::size_t num_threads = std::thread::hardware_concurrency();
         std::streamsize part_size = file_size / num_threads;
-
         std::vector<std::future<void>> futures;
 
         for (std::size_t i = 0; i < num_threads; ++i) {
@@ -190,7 +193,7 @@ void receive_file_part(boost::asio::ip::tcp::socket& socket, std::ofstream& file
     }
 }
 
-void receive_file_multithreaded(boost::asio::ip::tcp::socket& socket, const std::string& filename, std::streamsize file_size, std::atomic<bool>& receive) {
+void receive_file_multithreaded(boost::asio::ip::tcp::socket& socket, const std::string& filename, std::streamsize file_size, std::atomic<bool>& receive, std::size_t& num_threads_of_other_client) {
     try {
     	std::filesystem::create_directories("received_files");
         std::ofstream file("received_files/" + filename, std::ios::binary);
@@ -203,9 +206,12 @@ void receive_file_multithreaded(boost::asio::ip::tcp::socket& socket, const std:
             receive = false;
             return;
         }
-        std::string answer = aes_encrypt("FILE_CREATED\n");
+        std::size_t num_threads = std::thread::hardware_concurrency();
+        if (num_threads > num_threads_of_other_client) {
+            num_threads = num_threads_of_other_client;
+        }
+        std::string answer = aes_encrypt("FILE_CREATED "+ std::to_string(num_threads));
 		boost::asio::write(socket, boost::asio::buffer(answer));
-        const std::size_t num_threads = std::thread::hardware_concurrency();
         std::streamsize part_size = file_size / num_threads;
 
         std::vector<std::thread> threads;

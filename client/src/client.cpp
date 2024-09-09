@@ -159,15 +159,22 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
             } else if (message.find("/file") == 0) {
                 std::string filename = message.substr(6);
                 std::streamsize file_size;
-                parse_file_info(filename, file_size);
+                std::size_t num_threads = 0;
+                parse_file_info(filename, file_size, num_threads);
                 std::cout << "Receiving file: " << filename << std::endl;
                 receive = true;
-                receive_file_multithreaded(*client_socket, filename, file_size, receive);
+                receive_file_multithreaded(*client_socket, filename, file_size, receive, num_threads);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
             } else if (message.find("FILE_CREATED") != std::string::npos) {
                 std::cout << "Confirmation received. Let's start sending the file..." << std::endl;
-                send_file_multithreaded(path, *client_socket);
-                client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
+                std::size_t find_num_threads = message.find(" ");
+                    if (find_num_threads != std::string::npos) {
+                        std::string num_threads = message.substr(find_num_threads);
+                        send_file_multithreaded(path, *client_socket, std::atoi(num_threads.data()));
+                        client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
+                    } else {
+                        std::cerr << "Number of threads not finded\n";
+                    }
             } else if (!receive) {
                 print_message(username, message, false);
                 client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
@@ -225,7 +232,8 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 std::streamsize file_size = file.tellg();
                 file.close();
                 std::string file_size_str = std::to_string(file_size);
-                std::string file_info = "/file " + path + ":" + file_size_str;
+                const std::size_t num_threads = std::thread::hardware_concurrency();
+                std::string file_info = "/file " + path + ":" + file_size_str + ":" + std::to_string(num_threads);
 				std::string encrypted_message = aes_encrypt(file_info);
                 boost::asio::async_write(*client_socket, boost::asio::buffer(encrypted_message), handle_write);
             }
