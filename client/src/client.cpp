@@ -116,7 +116,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                     if (target_username != "") {
                                     
                     std::cout << "IP address of the selected client: " << clients_username_ip[target_username] << std::endl;
-                    std::cout << "Wait for another client to accept the connection(timeout 15 sec).." << std::endl;
+                    std::cout << "Wait for another client to accept the connection(time out 15 sec).." << std::endl;
                     connect_to_client(clients_username_ip[target_username], io_context, server_socket, username, connected_ptr, getlineThread_ptr);
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     return;
@@ -325,7 +325,6 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
                 if (!ec) {
                     std::cout << "Timeout: no response from client.\n";
                     client_socket->cancel();
-
                     notify_server_status(server_socket, "free", username);
                     connected_ptr->store(false);
                     getlineThread_ptr->store(true);
@@ -379,5 +378,3 @@ void connect_to_client(const std::string& client_ip, boost::asio::io_context& io
         }
     });
 }
-
-
