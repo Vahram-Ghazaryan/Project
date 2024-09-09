@@ -89,15 +89,15 @@ void request_list(std::shared_ptr<tcp::socket> server_socket, const std::string&
 
 void parse_file_info(std::string& filename, std::streamsize& file_size, size_t& num_threads) {
 	std::string input = filename;
-    std::size_t colon_pos = input.rfind(':');
+    std::size_t colon_pos = input.find(':');
     if (colon_pos != std::string::npos) {
         std::string full_path = input.substr(0, colon_pos);
         filename = std::filesystem::path(full_path).filename().string();
-        std::string size_str = input.substr(colon_pos + 1);
         std::string num_threads_of_other_client = input.substr(colon_pos + 1);
         std::size_t find_num_threads = num_threads_of_other_client.find(':');
         if (find_num_threads != std::string::npos) {
-            num_threads_of_other_client = num_threads_of_other_client.substr(find_num_threads);
+            std::string size_str = num_threads_of_other_client.substr(0, find_num_threads);
+            num_threads_of_other_client = num_threads_of_other_client.substr(find_num_threads + 1);
             num_threads = std::atoi(num_threads_of_other_client.data());
             try {
                 file_size = std::stoll(size_str); 
@@ -432,4 +432,3 @@ std::string aes_decrypt(const std::string& ciphertext) {
     EVP_CIPHER_CTX_free(ctx);
     return std::string(plaintext.begin(), plaintext.begin() + plaintext_len);
 }
-
