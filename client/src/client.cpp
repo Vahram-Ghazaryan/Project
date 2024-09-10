@@ -130,7 +130,8 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
             }
             handle_read(socket, server_socket, io_context, username, connected_ptr, getlineThread_ptr);
         } else {
-            std::cerr << "Error during read: " << error.message() << "\n";
+            std::cerr << "Server problem\n";
+            std::exit(1);
         }
     });
 }
@@ -169,7 +170,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
                 std::cout << "Confirmation received. Let's start sending the file..." << std::endl;
                 std::size_t find_num_threads = message.find(" ");
                     if (find_num_threads != std::string::npos) {
-                        std::string num_threads = message.substr(find_num_threads);
+                        std::string num_threads = message.substr(find_num_threads + 1);
                         send_file_multithreaded(path, *client_socket, std::atoi(num_threads.data()));
                         client_socket->async_read_some(boost::asio::buffer(*buffer), read_handler);
                     } else {
@@ -245,6 +246,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
         }
     }
 }
+
 
 void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username, std::shared_ptr<std::atomic<bool>> connected_ptr, std::shared_ptr<std::atomic<bool>> getlineThread_ptr) {
     auto new_socket = std::make_shared<tcp::socket>(io_context);

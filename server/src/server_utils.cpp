@@ -44,7 +44,7 @@ void change_port(int new_port, int& port) {
 }
 
 void print_help(std::string help) {
-    std::cout << "help_message" << std::endl;
+    std::cout << "Usage: server [options] [target]\n--help, -h\thelp message\n--change_port\tto change port" << std::endl;
 }
 
 void cmd_parse(const int argc, const char* argv[], int& port) {

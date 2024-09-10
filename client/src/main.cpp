@@ -5,7 +5,7 @@
 int main(int argc, char* argv[]) {	
     try {
         std::string username;
-        if (argc > 2) { 
+        if (argc >= 2) { 
             if(!cmd_parse(argc, const_cast<const char**> (argv), username)) {
                 return 0;
             };

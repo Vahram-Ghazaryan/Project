@@ -326,7 +326,7 @@ void change_port(int port) {
 }
 
 void print_help() {
-    std::cout << "help_message" << std::endl;
+    std::cout << "Usage: chat_client [options] [target]\n--help, -h\thelp message\n--change_port\tto change port\n--change_host_ip\tto change ip address of server\n--username, -u\t to enter username" << std::endl;
 }
 
 bool cmd_parse(const int argc, const char* argv[], std::string& username) {
