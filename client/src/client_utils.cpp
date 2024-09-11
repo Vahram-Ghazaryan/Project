@@ -7,7 +7,7 @@
 namespace fs = std::filesystem;
 using boost::asio::ip::tcp;
 
-
+// Dictionary to map text commands to corresponding emojis
 std::unordered_map<std::string, std::string> emoji_map = {
     {":smile", "😊"},
     {":sad", "😢"},
@@ -17,6 +17,7 @@ std::unordered_map<std::string, std::string> emoji_map = {
     {":heart", "❤️"}
 };
 
+// Function to replace text commands with emojis
 std::string replace_emojis(const std::string& message) {
     std::string result = message;
     for (const auto& pair : emoji_map) {
@@ -391,23 +392,16 @@ std::pair<std::string, std::string> read_config(const std::string& filename) {
 
     return {host, port};
 }
-
-std::string xor_encrypt_decrypt(const std::string& input, char key) {
-    std::string output = input;
-    for (char& c : output) {
-        c ^= key;
-    }
-    return output;
-}
-
 const std::string aes_key = "0123456789abcdef0123456789abcdef"; 
 const std::string aes_iv = "abcdef9876543210";
 
+// Function to encrypt a message using AES encryption with OpenSSL
 std::string aes_encrypt(const std::string& plaintext) {
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
     std::vector<unsigned char> ciphertext(plaintext.size() + AES_BLOCK_SIZE);
     int len = 0;
-
+	
+	// Initialize the decryption operation using AES-256-CBC mode
     EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, (unsigned char*)aes_key.data(), (unsigned char*)aes_iv.data());
     EVP_EncryptUpdate(ctx, ciphertext.data(), &len, (unsigned char*)plaintext.data(), plaintext.size());
     int ciphertext_len = len;
