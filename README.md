@@ -26,9 +26,9 @@ Client:
       sudo apt install libboost-all-dev
       sudo apt install libssl-dev
    3. Move to the build/ directory and execute the following commands:
-      rm -rf *
-      cmake..
-      make
+      rm -rf *   
+      cmake..   
+      make   
    4. Run the program.
 
    The links to the slides about the project are in the links.txt file.
