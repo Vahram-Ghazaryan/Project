@@ -21,7 +21,7 @@ Client:
 5. The client connects using data received from another client's server.
 
    To run the programs, you must:
-   1. Download the repository
+   1. Download the repository,
    2. Download the packages needed for boost/asio.hpp and openssl:
       sudo apt install libboost-all-dev
       sudo apt install libssl-dev
