@@ -25,7 +25,7 @@ Client:
    2. Download the packages needed for boost/asio.hpp and openssl:
       sudo apt install libboost-all-dev
       sudo apt install libssl-dev
-   3. Move to the build/ directory and execute the following commands:
+   3. Move to the build/ directory and execute the following commands:     
       rm -rf *   
       cmake..   
       make   
