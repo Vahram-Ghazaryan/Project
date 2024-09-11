@@ -20,7 +20,7 @@ Client:
 4. The client continuously waits for and accepts updates sent from the server.
 5. The client connects using data received from another client's server.
 
-   To run the programs, you must:
+To run the programs, you must:
    1. Download the repository,
    2. Download the packages needed for boost/asio.hpp and openssl:
       sudo apt install libboost-all-dev
