@@ -4,15 +4,17 @@
 namespace fs = std::filesystem;
 using boost::asio::ip::tcp;
 
+// Function to connect to another client by IP address
 void connect_to_client(const std::string& client_ip, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username, std::shared_ptr<std::atomic<bool>> connected_ptr, std::shared_ptr<std::atomic<bool>> getlineThread_ptr);
 
-
+// Handler for writing data asynchronously
 void handle_write(const boost::system::error_code& error, std::size_t) {
     if (error) {
         std::cerr << "Error during write: " << error.message() << "\n";
     }
 }
 
+// Function to handle reading data from the server
 void handle_read(std::shared_ptr<tcp::socket> socket, 
                  std::shared_ptr<tcp::socket> server_socket, 
                  boost::asio::io_context& io_context, 
@@ -21,7 +23,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
                  std::shared_ptr<std::atomic<bool>> getlineThread_ptr) {
     
     auto buffer = std::make_shared<std::array<char, 1024>>();
-
+	// Asynchronous read operation from the server
     socket->async_read_some(boost::asio::buffer(*buffer), 
     [socket, server_socket, buffer, &io_context, username, connected_ptr, getlineThread_ptr]
     (const boost::system::error_code& error, std::size_t length) {
@@ -136,6 +138,7 @@ void handle_read(std::shared_ptr<tcp::socket> socket,
     });
 }
 
+// Function to start a chat session between two clients
 void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp::socket> server_socket, const std::string& username, std::shared_ptr<std::atomic<bool>> connected_ptr, std::shared_ptr<std::atomic<bool>> getlineThread_ptr, boost::asio::io_context& io_context) {
     const std::string user_color = "\033[34m";  // Blue
     const std::string reset_color = "\033[0m";  // Reset to default
@@ -247,7 +250,7 @@ void start_chat(std::shared_ptr<tcp::socket> client_socket, std::shared_ptr<tcp:
     }
 }
 
-
+// function to receive a request from another client
 void accept_connections(std::shared_ptr<tcp::acceptor> acceptor, boost::asio::io_context& io_context, std::shared_ptr<tcp::socket> server_socket, const std::string& username, std::shared_ptr<std::atomic<bool>> connected_ptr, std::shared_ptr<std::atomic<bool>> getlineThread_ptr) {
     auto new_socket = std::make_shared<tcp::socket>(io_context);
     acceptor->async_accept(*new_socket, [new_socket, acceptor, &io_context, server_socket, username, connected_ptr, getlineThread_ptr](const boost::system::error_code& error) {
